@@ -77,33 +77,21 @@ def normalize():
     pass
 
 def plot_graph(df):
+    plot_graph_part(df, end=len(df), title = 'Whole dataset')    
+
+def plot_graph_part(df, begin=0, end=288, title='24h'):
     fig = plt.figure(figsize=(12, 8))
-    # fig.autofmt_xdate()
-
-    plt.subplot(2, 1, 1)
-    plt.plot(df['datetime'], df[ist_l], label=ist_l)
-    # plt.xticks(rotation=50)
-    plt.legend()
-    plt.title('Whole dataset')
-
-    plt.subplot(2, 1, 2)
-    plt.scatter(df['datetime'], df[cho_l], label=cho_l, c='g', s=10)
-    # plt.xticks(rotation=50)
-    plt.legend()
-    
-
-def plot_graph_part(df, begin=0, end=288):
-    fig = plt.figure(figsize=(12, 8))
+    #fig.autofmt_xdate()
 
     plt.subplot(2, 1, 1)
     plt.plot(df['datetime'][begin:end], df[ist_l][begin:end], label=ist_l)
-    plt.xticks(rotation=50)
+    #plt.xticks(rotation=50)
     plt.legend()
-    plt.title('24h')
+    plt.title(title)
 
     plt.subplot(2, 1, 2)
     plt.scatter(df['datetime'][begin:end], df[cho_l][begin:end], label=cho_l, c='g', s=10)
-    plt.xticks(rotation=50)
+    #plt.xticks(rotation=50)
     plt.legend()
 
 def load_data(patientID, from_file=False, headers = [], normalize = False, verbose=False, graphs=False):

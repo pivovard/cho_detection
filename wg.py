@@ -3,6 +3,9 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 
+MAX_EPOCHS = 2
+WINDOW_WIDTH_1H = 12 #1 hour window
+WINDOW_WIDTH_24H = 288 #24 hour window
 
 #window of consecutive samples from the data
 class WindowGenerator():
@@ -19,6 +22,9 @@ class WindowGenerator():
     self.train_df = df[0:int(n*0.7)]
     self.val_df = df[int(n*0.7):int(n*0.9)]
     self.test_df = df[int(n*0.9):]
+
+    for index, row in self.test_df.iterrows():
+      self.test_df.loc[index,'Carbohydrate intake'] = 0
 
     self.datetime = data['datetime']
 
@@ -76,7 +82,7 @@ class WindowGenerator():
     
     ds = ds.map(self.split_window)
     return ds
-    
+
   def plot(self, model=None, plot_col='Carbohydrate intake', title=None, max_subplots=1, show=False):
     inputs, labels = self.example
     plt.figure(figsize=(12, 8))
@@ -85,9 +91,7 @@ class WindowGenerator():
     for n in range(max_n):
       plt.subplot(3, 1, n+1)
       plt.ylabel(f'{plot_col}')
-      # plt.plot(self.input_indices, inputs[n, :, plot_col_index],
-      #          label='Inputs', marker='.', zorder=-10)
-      plt.plot(self.datetime[n:(n+1)*self.total_window_size], inputs[n, :, plot_col_index],
+      plt.plot(self.input_indices, inputs[n, :, plot_col_index],
                label='Inputs', marker='.', zorder=-10)
   
       if self.label_columns:
@@ -133,7 +137,38 @@ class WindowGenerator():
     result = getattr(self, '_example', None)
     if result is None:
       # No example batch was found, so get one from the `.train` dataset
-      result = next(iter(self.train))
+      result = next(iter(self.test))
       # And cache it for next time
       self._example = result
     return result
+
+def test(df):
+	headers = ['Interstitial glucose', 'Carbohydrate intake', 'hour', 'weekday']
+	labels = 'Carbohydrate intake'
+	
+	window = WindowGenerator(data=df, headers=headers,
+								input_width=WINDOW_WIDTH_1H, label_width=1, shift=0,
+								label_columns=['Carbohydrate intake'])
+	window1 = WindowGenerator(data=df, headers=headers,
+								input_width=WINDOW_WIDTH_1H, label_width=WINDOW_WIDTH_1H, shift=0,
+								label_columns=['Carbohydrate intake'])  
+	window24 = WindowGenerator(data=df, headers=headers,
+								input_width=WINDOW_WIDTH_24H, label_width=WINDOW_WIDTH_24H, shift=0,
+								label_columns=['Carbohydrate intake'])
+	
+	early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=2, mode='min')
+	
+	lstm_model = tf.keras.models.Sequential([
+		# Shape [batch, time, features] => [batch, time, lstm_units]
+		tf.keras.layers.LSTM(32, return_sequences=True),
+		# Shape => [batch, time, features]
+		tf.keras.layers.Dense(units=1)
+	])
+	
+	lstm_model.compile(loss=tf.losses.MeanSquaredError(), optimizer=tf.optimizers.Adam(), metrics=[tf.metrics.MeanAbsoluteError()])
+	lstm_model.fit(window1.train, epochs=MAX_EPOCHS, validation_data=window1.val, callbacks=[early_stopping])
+	
+	window1.plot(lstm_model, title='LSTM')
+	#window24.plot(lstm_model, title='LSTM')
+	
+	plt.show()

@@ -34,39 +34,4 @@ lstm_model = tf.keras.models.Sequential([
 ])
 
 #test WindowGenerator
-#wg.test(df)
-
-data = pd.DataFrame()
-for i, h in enumerate(['Interstitial glucose', 'Carbohydrate intake', 'hour', 'weekday']):
-    data[h] = df[h]
-
-ds = tf.keras.preprocessing.timeseries_dataset_from_array(
-        data=data,
-        targets=df['Carbohydrate intake'],
-        sequence_length=WINDOW_WIDTH_24H,
-        sequence_stride=1,
-        shuffle=False,
-        batch_size=32)
-
-lstm_model.compile(loss=tf.losses.MeanSquaredError(), optimizer=tf.optimizers.Adam(), metrics=[tf.metrics.MeanAbsoluteError()])
-lstm_model.fit(ds, epochs=MAX_EPOCHS, callbacks=[early_stopping])
-
-ds_test = tf.keras.preprocessing.timeseries_dataset_from_array(
-        data=data,
-        targets=None,
-        sequence_length=WINDOW_WIDTH_24H,
-        sequence_stride=1,
-        shuffle=False,
-        batch_size=32)
-
-predictions = lstm_model(next(iter(ds_test)))
-
-
-plt.figure(figsize=(12, 8))
-plt.scatter(df['datetime'][0:WINDOW_WIDTH_24H], predictions[0],
-            marker='o', edgecolors='k', label='Labels', c='#2ca02c', s=10)
-plt.scatter(df['datetime'][0:WINDOW_WIDTH_24H], df['Carbohydrate intake'][0:WINDOW_WIDTH_24H],
-            marker='^', edgecolors='k', label='Predictions',
-            c='#ff7f0e', s=10)
-
-plt.show()
+wg.test(df)

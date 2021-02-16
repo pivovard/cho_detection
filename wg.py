@@ -3,7 +3,7 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 
-MAX_EPOCHS = 2
+MAX_EPOCHS = 20
 WINDOW_WIDTH_1H = 12 #1 hour window
 WINDOW_WIDTH_24H = 288 #24 hour window
 
@@ -23,8 +23,8 @@ class WindowGenerator():
     self.val_df = df[int(n*0.7):int(n*0.9)]
     self.test_df = df[int(n*0.9):]
 
-    for index, row in self.test_df.iterrows():
-      self.test_df.loc[index,'Carbohydrate intake'] = 0
+    # for index, row in self.test_df.iterrows():
+    #   self.test_df.loc[index,'Carbohydrate intake'] = 0
 
     self.datetime = data['datetime']
 
@@ -83,7 +83,7 @@ class WindowGenerator():
     ds = ds.map(self.split_window)
     return ds
 
-  def plot(self, model=None, plot_col='Carbohydrate intake', title=None, max_subplots=1, show=False):
+  def plot(self, model=None, plot_col='Interstitial glucose', title=None, max_subplots=1, show=False):
     inputs, labels = self.example
     plt.figure(figsize=(12, 8))
     plot_col_index = self.column_indices[plot_col]
@@ -143,18 +143,18 @@ class WindowGenerator():
     return result
 
 def test(df):
-	headers = ['Interstitial glucose', 'Carbohydrate intake', 'hour', 'weekday']
+	headers = ['Interstitial glucose', 'hour', 'weekday']
 	labels = 'Carbohydrate intake'
 	
 	window = WindowGenerator(data=df, headers=headers,
-								input_width=WINDOW_WIDTH_1H, label_width=1, shift=0,
-								label_columns=['Carbohydrate intake'])
+								input_width=WINDOW_WIDTH_1H, label_width=1, shift=1,
+								label_columns=['Interstitial glucose'])
 	window1 = WindowGenerator(data=df, headers=headers,
-								input_width=WINDOW_WIDTH_1H, label_width=WINDOW_WIDTH_1H, shift=0,
-								label_columns=['Carbohydrate intake'])  
+								input_width=WINDOW_WIDTH_1H, label_width=WINDOW_WIDTH_1H, shift=12,
+								label_columns=['Interstitial glucose'])  
 	window24 = WindowGenerator(data=df, headers=headers,
-								input_width=WINDOW_WIDTH_24H, label_width=WINDOW_WIDTH_24H, shift=0,
-								label_columns=['Carbohydrate intake'])
+								input_width=WINDOW_WIDTH_24H, label_width=WINDOW_WIDTH_24H, shift=1,
+								label_columns=['Interstitial glucose'])
 	
 	early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=2, mode='min')
 	
@@ -166,9 +166,10 @@ def test(df):
 	])
 	
 	lstm_model.compile(loss=tf.losses.MeanSquaredError(), optimizer=tf.optimizers.Adam(), metrics=[tf.metrics.MeanAbsoluteError()])
-	lstm_model.fit(window1.train, epochs=MAX_EPOCHS, validation_data=window1.val, callbacks=[early_stopping])
+	lstm_model.fit(window.train, epochs=MAX_EPOCHS, validation_data=window.val, callbacks=[early_stopping])
 	
+	#window.plot(lstm_model, title='LSTM')
 	window1.plot(lstm_model, title='LSTM')
-	#window24.plot(lstm_model, title='LSTM')
+	window24.plot(lstm_model, title='LSTM')
 	
 	plt.show()

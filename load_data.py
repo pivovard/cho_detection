@@ -5,8 +5,7 @@ import matplotlib.pyplot as plt
 from tabulate import tabulate
 from datetime import timedelta
 
-cho_l = 'Carbohydrate intake'
-ist_l = 'Interstitial glucose'
+import utils
 
 #get timestamp and weekday
 def process_time(df):
@@ -24,38 +23,43 @@ def process_time(df):
 #drop null IST
 def get_ist(df):
     #df = df[df['Interstitial glucose'].notna()]
-    df = df[df['Interstitial glucose'].notna() | df['Carbohydrate intake'].notna()]
+    df = df[df['Interstitial glucose'].notna()
+            | df['Carbohydrate intake'].notna()
+            | df['Physical activity'].notna()
+            | df['requested insulin bolus'].notna()
+            | df['requested insulin basal rate'].notna()]
     df = df.reset_index()
 
     #shift carb values matching nan ist
     #add processing for multiple columns as for cho
-    print('Shifted carb intake')
-    for index, row in df.iterrows():
-        if not np.isnan(row['Carbohydrate intake']) and np.isnan(row['Interstitial glucose']):
-            datetime = row['datetime']
-            carb = row[cho_l]
-            print('Original datetime ' + str(row['datetime']))
+    for i, column in enumerate(['Carbohydrate intake', 'Physical activity', 'requested insulin bolus', 'requested insulin basal rate']):
+        print(f'Shift {column}')
+        for index, row in df.iterrows():
+            if not np.isnan(row[column]) and np.isnan(row['Interstitial glucose']):
+                datetime = row['datetime']
+                carb = row[utils.cho_l]
+                print('Original datetime ' + str(row['datetime']))
 
-            #assign to closer ist value
-            if index > 0 and index < len(df)-1:
-                prev = datetime - df.loc[index-1, 'datetime']
-                next = df.loc[index+1, 'datetime'] - datetime
-                print('Prev = ' + str(prev) + ' Next = ' + str(next))
+                #assign to closer ist value
+                if index > 0 and index < len(df)-1:
+                    prev = datetime - df.loc[index-1, 'datetime']
+                    next = df.loc[index+1, 'datetime'] - datetime
+                    print('Prev = ' + str(prev) + ' Next = ' + str(next))
 
-                #if value greater than 20min
-                delta = timedelta(0, 0, 0, 0, 20, 0)
-                if prev > delta or next > delta:
-                    print('No close ist value.')
-                    continue
+                    #if value greater than 20min
+                    delta = timedelta(0, 0, 0, 0, 20, 0)
+                    if prev > delta or next > delta:
+                        print('No close ist value.')
+                        continue
 
-                #assign to closer
-                if prev < next:
-                    df.loc[index-1, cho_l] = carb
+                    #assign to closer
+                    if prev < next:
+                        df.loc[index-1, utils.cho_l] = carb
+                    else:
+                        df.loc[index+1, utils.cho_l] = carb
+
                 else:
-                    df.loc[index+1, cho_l] = carb
-
-            else:
-                print('Boundary value.')
+                    print('Boundary value.')
 
     df = df[df['Interstitial glucose'].notna()]
     df = df.reset_index()
@@ -84,18 +88,22 @@ def plot_graph_part(df, begin=0, end=288, title='24h'):
     #fig.autofmt_xdate()
 
     plt.subplot(2, 1, 1)
-    plt.plot(df['datetime'][begin:end], df[ist_l][begin:end], label=ist_l)
+    plt.plot(df['datetime'][begin:end], df[utils.ist_l][begin:end], label=utils.ist_l)
     #plt.xticks(rotation=50)
     plt.legend()
     plt.title(title)
 
     plt.subplot(2, 1, 2)
-    plt.scatter(df['datetime'][begin:end], df[cho_l][begin:end], label=cho_l, c='g', s=10)
+    plt.scatter(df['datetime'][begin:end], df[utils.cho_l][begin:end], label=utils.cho_l, c='g', s=10)
+    plt.scatter(df['datetime'][begin:end], df[utils.phy_l][begin:end], label=utils.phy_l, c='r', s=10)
+    plt.scatter(df['datetime'][begin:end], df[utils.inb_l][begin:end], label=utils.inb_l, c='k', s=10)
+    plt.scatter(df['datetime'][begin:end], df[utils.inr_l][begin:end], label=utils.inr_l, c='c', s=10)
     #plt.xticks(rotation=50)
     plt.legend()
 
-def load_data(patientID, from_file=False, headers = [], normalize = False, verbose=False, graphs=False):
+def load_data(patientID, from_file=False, normalize = False, verbose=True, graphs=False):
     if from_file:
+        utils.printh('Loading data from file.')
         df = pd.read_csv(f'data/{patientID}-modified.csv', sep=';')
         #set datetime type
         device_time = df.pop('datetime')
@@ -103,6 +111,7 @@ def load_data(patientID, from_file=False, headers = [], normalize = False, verbo
         df['datetime'] = date_time
 
     else:
+        utils.printh('Loading and modifying data from csv.')
         df = pd.read_csv(f'data/{patientID}-transposed.csv', sep=';')
 
         if verbose:
@@ -123,7 +132,7 @@ def load_data(patientID, from_file=False, headers = [], normalize = False, verbo
     if graphs:
         plot_graph(df)
         plot_graph_part(df)
-        #plt.show()
+        plt.show()
 
     df = clean_data(df)
     return df

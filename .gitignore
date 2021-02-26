@@ -135,3 +135,6 @@ data/
 *.sln
 *.pyproj
 .vs/
+
+model/
+*.zip

@@ -1,68 +1,119 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import sweetviz
+
+from scipy import interpolate
 
 from tabulate import tabulate
+from datetime import datetime
 from datetime import timedelta
 
 import utils
 
-#get timestamp and weekday
-def process_time(df):
-    device_time = df.pop('Device Time')
+def to_datetime(df, column):
+    device_time = df.pop(column)
     date_time = pd.to_datetime(device_time, format='%Y-%m-%d %H:%M:%S')
     df['datetime'] = date_time
+    return df
 
-    time = date_time.apply(lambda date : date.time())
+#get timestamp and weekday
+def process_time(df):
+    time = df['datetime'].apply(lambda date : date.time())
     df['hour'] = time.apply(lambda t: t.hour)
+    df['quater'] = time.apply(lambda t: t.hour*10 + (t.minute/40)*4)
     df['timestamp'] = time.apply(lambda t: (t.hour * 60 + t.minute) * 60 + t.second)
-    df['weekday'] = date_time.apply(lambda date: date.weekday())
+    df['weekday'] = df['datetime'].apply(lambda date: date.weekday())
 
     return df
 
 #drop null IST
-def get_ist(df):
-    #df = df[df['Interstitial glucose'].notna()]
+def get_ist(df, fill_missing):
+    print('\nProcessing IST...')
+    df_ist = df[df['Interstitial glucose'].notna()].reset_index()
     df = df[df['Interstitial glucose'].notna()
             | df['Carbohydrate intake'].notna()
             | df['Physical activity'].notna()
             | df['requested insulin bolus'].notna()
             | df['requested insulin basal rate'].notna()]
-    df = df.reset_index()
+    
+    if fill_missing:
+        print("\nFilling missing values...")
+        delta = timedelta(minutes=10)
+        for i in range(len(df_ist)-1):
+            d1= df_ist.loc[i, 'datetime']
+            d2= df_ist.loc[i+1, 'datetime']
+            diff = d2 - d1
+            if diff > delta:
+                count = int(diff / timedelta(minutes=5))
+                dates = np.array([d1 + timedelta(minutes=i*5) for i in range(1, count)])
+                df_tmp = pd.DataFrame([[np.nan for i in df.columns] for i in range(count-1)], columns=df.columns, dtype=float)
+                df_tmp['datetime'] = pd.to_datetime(dates)
+                # Set ist value
+                ist = np.array([0 for i in range(count-1)])
+                df_tmp[utils.ist_l] = ist
+                print(f'Between {d1} and {d2} add {dates[0]} - {dates[-1]}')
+                df = df.append(df_tmp, ignore_index=True)
+
+    df = df.sort_values('datetime').reset_index()
+    df.pop('index') #delete old index column
 
     #shift carb values matching nan ist
     #add processing for multiple columns as for cho
+    delta = timedelta(minutes=20)
     for i, column in enumerate(['Carbohydrate intake', 'Physical activity', 'requested insulin bolus', 'requested insulin basal rate']):
-        print(f'Shift {column}')
+        print(f'\nShifting {column}')
         for index, row in df.iterrows():
-            if not np.isnan(row[column]) and np.isnan(row['Interstitial glucose']):
-                datetime = row['datetime']
-                carb = row[utils.cho_l]
+            if not pd.isnull(row[column]) and pd.isnull(row['Interstitial glucose']):
+                date_time = row['datetime']
+                value = row[column]
                 print('Original datetime ' + str(row['datetime']))
 
                 #assign to closer ist value
-                if index > 0 and index < len(df)-1:
-                    prev = datetime - df.loc[index-1, 'datetime']
-                    next = df.loc[index+1, 'datetime'] - datetime
+                if index > 0 and index < len(df):
+                    prev = date_time - df.loc[index-1, 'datetime']
+                    next = df.loc[index+1, 'datetime'] - date_time
                     print('Prev = ' + str(prev) + ' Next = ' + str(next))
 
-                    #if value greater than 20min
-                    delta = timedelta(0, 0, 0, 0, 20, 0)
-                    if prev > delta or next > delta:
+                    #if time delta greater than 20min
+                    if prev > delta and next > delta:
                         print('No close ist value.')
                         continue
 
                     #assign to closer
                     if prev < next:
-                        df.loc[index-1, utils.cho_l] = carb
+                        df.loc[index-1, column] = value
                     else:
-                        df.loc[index+1, utils.cho_l] = carb
+                        df.loc[index+1, column] = value
 
+                # Boundary values
+                elif index == 0:
+                    next = df.loc[index+1, 'datetime'] - date_time
+                    if next < delta:
+                        x=df.loc[index+1, utils.ist_l]
+                        df.loc[index+1, column] = value
                 else:
-                    print('Boundary value.')
-
+                    prev = date_time - df.loc[index-1, 'datetime']
+                    if prev < delta:
+                        df.loc[index-1, column] = value
+                    
+    # Clear null ist
     df = df[df['Interstitial glucose'].notna()]
     df = df.reset_index()
+    df.pop('index') #delete old index column
+    return df
+
+def get_cho(df):
+    print('\nProcessing CHO...')
+    df['cho2'] = np.zeros(len(df))
+    it = df.iterrows()
+    for index, row in it:
+        if row[utils.cho_l] > 0:
+            for i in range(24): #2h
+                df.loc[index+i, 'cho2'] = df.loc[index+i, 'cho2'] + row[utils.cho_l]
+    #boolean values
+    df['cho_b'] = df[utils.cho_l] > 0
+    df['cho2_b'] = df['cho2'] > 0
     return df
 
 #NaN -> 0, - -> 0
@@ -80,20 +131,48 @@ def clean_data(df):
 def normalize():
     pass
 
-def plot_graph(df):
-    plot_graph_part(df, end=len(df), title = 'Whole dataset')    
+def calc_derivations(df):
+    print('\nCalculating derivations...')
+    der = pd.DataFrame(columns=['der1', 'der2', 'der3'], dtype=float)
+    for i in range(len(df)-1):
+        utils.printProgressBar(i, len(df)-1)
+        if (df.loc[i+1,'datetime']-df.loc[i,'datetime']) > timedelta(minutes=5) or df.loc[i,utils.ist_l] == 0 or df.loc[i+1,utils.ist_l] == 0:
+            der.loc[i] = [0,0,0]
+            continue
+        der1=(df.loc[i+1,utils.ist_l]-df.loc[i,utils.ist_l])/5
+        der2=der1/5
+        der3=der2/5
+        der.loc[i] = [der1,der2,der3]
 
-def plot_graph_part(df, begin=0, end=288, title='24h'):
+    der = pd.concat([pd.DataFrame([0,0,0]), der], ignore_index=True)
+    return pd.concat([df, der], axis=1)
+
+def calc_gradient(df):
+    print('\nCalculating gradient...')
+    delta = timedelta(minutes=5).total_seconds()
+    #delta = (1/24)/12
+    df['grad1'] = np.gradient(df[utils.ist_l], delta, edge_order=2)
+    df['grad2'] = np.gradient(df['grad1'], delta, edge_order=2)
+    df['grad3'] = np.gradient(df['grad2'], delta, edge_order=2)
+    return df
+
+def plot_graph(df, begin=0, end=0, title='24h'):
+    if end==0:
+        end=len(df)
+
     fig = plt.figure(figsize=(12, 8))
+    fig.canvas.set_window_title(title)
+    fig.suptitle(title)
     #fig.autofmt_xdate()
 
-    plt.subplot(2, 1, 1)
+    plt.subplot(3, 1, 1)
+    plt.title('Interstitial glucose')
     plt.plot(df['datetime'][begin:end], df[utils.ist_l][begin:end], label=utils.ist_l)
     #plt.xticks(rotation=50)
     plt.legend()
-    plt.title(title)
 
-    plt.subplot(2, 1, 2)
+    plt.subplot(3, 1, 2)
+    plt.title('Carbohydrate intake, PA, Insulin')
     plt.scatter(df['datetime'][begin:end], df[utils.cho_l][begin:end], label=utils.cho_l, c='g', s=10)
     plt.scatter(df['datetime'][begin:end], df[utils.phy_l][begin:end], label=utils.phy_l, c='r', s=10)
     plt.scatter(df['datetime'][begin:end], df[utils.inb_l][begin:end], label=utils.inb_l, c='k', s=10)
@@ -101,17 +180,72 @@ def plot_graph_part(df, begin=0, end=288, title='24h'):
     #plt.xticks(rotation=50)
     plt.legend()
 
-def load_data(patientID, from_file=False, normalize = False, verbose=True, graphs=False):
+    plt.subplot(3, 1, 3)
+    plt.title('Carbohydrate intake')
+    plt.scatter(df['datetime'][begin:end], df['cho2'][begin:end], s=6)
+    plt.scatter(df['datetime'][begin:end], df[utils.cho_l][begin:end], s=10)
+    plt.legend()
+    plt.ylabel('[g]')
+
+def plot_derivations(df, der, grad, begin=0, end=0, title=''):
+    if end==0:
+        end=len(df)
+
+    # Derivations
+    if der:
+        fig = plt.figure(figsize=(12, 8))
+        fig.canvas.set_window_title('Derivations')
+        fig.suptitle('Derivations')
+
+        plt.subplot(4, 1, 1)
+        plt.plot(df['datetime'][begin:end], df[utils.ist_l][begin:end], label='ist')
+        plt.legend()
+        plt.ylabel('Interstitial glucose [mmol/l]')
+
+        plt.subplot(4, 1, 2)
+        plt.plot(df['datetime'][begin:end], df['der1'][begin:end], label='der1 [mmol/l^2]')
+        plt.legend()
+
+        plt.subplot(4, 1, 3)
+        plt.plot(df['datetime'][begin:end], df['der2'][begin:end], label='der2 [mmol/l^2]')
+        plt.legend()
+
+        plt.subplot(4, 1, 4)
+        plt.plot(df['datetime'][begin:end], df['der3'][begin:end], label='der3 [mmol/l^4]')
+        plt.legend()
+
+    # Gradient
+    if grad:
+        fig = plt.figure(figsize=(12, 8))
+        fig.canvas.set_window_title('Gradient '+ title)
+        fig.suptitle('Gradient '+ title)
+
+        plt.subplot(4, 1, 1)
+        plt.plot(df['datetime'][begin:end], df[utils.ist_l][begin:end], label='ist')
+        plt.legend()
+        plt.ylabel('Interstitial glucose [mmol/l]')
+
+        plt.subplot(4, 1, 2)
+        plt.plot(df['datetime'][begin:end], df['grad1'][begin:end], label='grad1 [mmol/l^2]')
+        plt.legend()
+
+        plt.subplot(4, 1, 3)
+        plt.plot(df['datetime'][begin:end], df['grad2'][begin:end], label='grad2 [mmol/l^2]')
+        plt.legend()
+
+        plt.subplot(4, 1, 4)
+        plt.plot(df['datetime'][begin:end], df['grad3'][begin:end], label='grad3 [mmol/l^4]')
+        plt.legend()
+
+def load_data(patientID, from_file=False, fill_missing=False, normalize=False, der=False, grad=True,
+              verbose=True, graphs=False, analyze=False):
     if from_file:
-        utils.printh('Loading data from file.')
+        utils.print_h('Loading data from file.')
         df = pd.read_csv(f'data/{patientID}-modified.csv', sep=';')
         #set datetime type
-        device_time = df.pop('datetime')
-        date_time = pd.to_datetime(device_time, format='%Y-%m-%d %H:%M:%S')
-        df['datetime'] = date_time
-
+        df = to_datetime(df, 'datetime')
     else:
-        utils.printh('Loading and modifying data from csv.')
+        utils.print_h('Loading and modifying data from csv.')
         df = pd.read_csv(f'data/{patientID}-transposed.csv', sep=';')
 
         if verbose:
@@ -119,8 +253,16 @@ def load_data(patientID, from_file=False, normalize = False, verbose=True, graph
             print(tabulate(df.head(20), headers = 'keys', tablefmt = 'psql'))
             print(df.describe().transpose(), end='\n\n')
 
+        df = to_datetime(df, 'Device Time')
+        df = get_ist(df, fill_missing)
+        df = get_cho(df)
         df = process_time(df)
-        df = get_ist(df)
+
+        # derivations
+        if(der):
+            df = calc_derivations(df)
+        if(grad):
+            df = calc_gradient(df)
 
         df.to_csv(f'data/{patientID}-modified.csv', index=False, sep=';')
 
@@ -129,10 +271,15 @@ def load_data(patientID, from_file=False, normalize = False, verbose=True, graph
         print(tabulate(df.head(20), headers = 'keys', tablefmt = 'psql'))
         print(df.describe().transpose(), end='\n\n')
 
+    if analyze:
+        report = sweetviz.analyze(df)
+        report.show_html()
+
     if graphs:
-        plot_graph(df)
-        plot_graph_part(df)
-        plt.show()
+        plot_graph(df, title = 'Whole dataset') 
+        plot_graph(df, end=288, title = '24h dataset')
+        plot_derivations(df, der, grad, title = 'Whole dataset')
+        plot_derivations(df, der, grad, end=288, title = '24h dataset')
 
     df = clean_data(df)
     return df

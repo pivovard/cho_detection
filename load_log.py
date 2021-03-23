@@ -7,7 +7,7 @@ from tabulate import tabulate
 import utils
 
 def load_log(patientID):
-    utils.printh('Transfering data from log file')
+    utils.print_h('Transfering data from log file')
 
     path = f'data/{patientID}-ws-training.log'
     print(path)

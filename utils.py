@@ -8,13 +8,13 @@ inr_l = 'requested insulin basal rate'
 WINDOW_WIDTH_1H = 12    #1 hour window
 WINDOW_WIDTH_24H = 288  #24 hour window
 
-def printh(text):
+def print_h(text):
     print('\n' + '+' * (len(text)+6))
     print(f'++ {text} ++')
     print('+' * (len(text)+6) + '\n')
 
 # Print iterations progress
-def printProgressBar (iteration, total, prefix = 'Progress', suffix = 'Complete', decimals = 1, length = 100, fill = '=', printEnd = "\r"):
+def printProgressBar (iteration, total, prefix = 'Progress', suffix = 'Complete', decimals = 1, length = 50, fill = '=', printEnd = "\r"):
     """
     Call in a loop to create terminal progress bar
     @params:

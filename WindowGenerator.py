@@ -6,20 +6,20 @@ import matplotlib.pyplot as plt
 #window of consecutive samples from the data
 class WindowGenerator():
   def __init__(self, input_width, label_width, shift,
-               data, headers, label_columns=None):
+               df, headers, label_columns=None):
 
     # Store the raw data.
-    df = pd.DataFrame()
+    _df = pd.DataFrame()
     for i, h in enumerate(headers):
-      df[h] = data[h]
+      _df[h] = df[h]
 
     #split dataframe
-    n = len(df)
-    self.train_df = df[0:int(n*0.7)]
-    self.val_df = df[int(n*0.7):int(n*0.9)]
-    self.test_df = df[int(n*0.9):]
+    n = len(_df)
+    self.train_df = _df[0:int(n*0.7)]
+    self.val_df = _df[int(n*0.7):int(n*0.9)]
+    self.test_df = _df[int(n*0.9):]
 
-    self.datetime = data['datetime']
+    self.datetime = df['datetime']
 
     # Work out the label column indices.
     self.label_columns = label_columns
@@ -76,14 +76,17 @@ class WindowGenerator():
     ds = ds.map(self.split_window)
     return ds
 
-  def plot(self, model=None, plot_col='Interstitial glucose', title=None, max_subplots=3, show=False):
+  def plot(self, model=None, plot_col='Interstitial glucose', title=None, max_subplots=3):
     inputs, labels = self.example_test
-    plt.figure(figsize=(12, 8))
+    fig = plt.figure(figsize=(12, 8))
+    fig.canvas.set_window_title(title)
+    fig.suptitle(title)
+
     plot_col_index = self.column_indices[plot_col]
     max_n = min(max_subplots, len(inputs))
     for n in range(max_n):
       plt.subplot(3, 1, n+1)
-      plt.ylabel(f'{plot_col}')
+      plt.ylabel(f'{plot_col} [mmol/l]')
       plt.plot(self.input_indices, inputs[n, :, plot_col_index],
                label='Inputs', marker='.', zorder=-10)
   
@@ -102,15 +105,7 @@ class WindowGenerator():
         plt.scatter(self.label_indices, predictions[n, :, label_col_index],
                     marker='^', edgecolors='k', label='Predictions',
                     c='#ff7f0e', s=10)
-  
-      if n == 0:
-        plt.legend()
-  
-    plt.xlabel('t')
-    plt.title(title)
-    
-    if show:
-      plt.show()
+      plt.legend()
     
   @property
   def train(self):
@@ -130,9 +125,7 @@ class WindowGenerator():
     result = getattr(self, '_example_test', None)
     if result is None:
       # No example batch was found, so get one from the `.train` dataset
-      #result = next(iter(self.test))
-      #for test purposes shift test data for patient 591
-      result = next(iter(self.make_dataset(self.test_df[19:])))
+      result = next(iter(self.test))
       # And cache it for next time
       self._example_test = result
     return result

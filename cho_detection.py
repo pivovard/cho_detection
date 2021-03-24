@@ -60,11 +60,11 @@ def evaluate(y_label, y_pred, method='', graph=False):
                 y_elements = y_pred[i:i+n_elements]
             else:
                 y_elements = y_pred[i:]
-            if np.any(y_elements > 0):
+            if np.any(y_elements > 0.5):
                 TP[i] = True
             else:
                 FN[i] = True
-        elif y_pred[i] > 0:
+        elif y_pred[i] > 0.5:
             if i >= n_elements:
                 y_elements = y_label[i-n_elements:i]
             else:
@@ -91,18 +91,68 @@ def create_window(df, y_label, width):
         X[i] = df[i:i+width]
     return X, y
 
+def create_window2(df, y_label, width):
+    #shape (number of windows, window width, columns count)
+    X = np.empty((len(df)-width, width, len(df.columns)))
+    y = y_label[int(width/2):-int(width/2)]
+    for i in range(len(df)-width):
+        X[i] = df[i:i+width]
+    return X, y
+
 def window_stack(a, stepsize=1, width=24):
     n = a.shape[0]
     return np.hstack( a[i:1+n+i-width:stepsize] for i in range(0,width) )
 
-def CONV(df):
+def dense(df):
     df_train = df[:int(len(df)*0.8)]
-    df_eval = df[int(len(df)*0.8):]
-    headers = [utils.ist_l, 'weekday', 'grad1', 'grad2', 'grad3']
+    df_test = df[int(len(df)*0.8):]
+    headers = [utils.ist_l, 'hour', 'weekday', 'grad1', 'grad2', 'grad3']
 
-def LSTM(df):
+    X, y = create_window2(df_train[headers], df_train['cho2_b'], utils.WINDOW_WIDTH_1H*2)
+
+    model = tf.keras.Sequential([
+        # Shape: (time, features) => (time*features)
+        tf.keras.layers.Flatten(),
+        tf.keras.layers.Dense(units=32, activation='relu'),
+        tf.keras.layers.Dense(units=128, activation='relu'),
+        tf.keras.layers.Dense(units=1, activation='sigmoid')
+    ])
+
+    model.compile(loss=tf.losses.MeanSquaredError(), optimizer=tf.optimizers.Adam(), metrics=[tf.metrics.MeanAbsoluteError()])
+    model.fit(X, y, epochs=200, batch_size= 32,  shuffle=False)
+
+    X, y = create_window(df_test[headers], df_test['cho_b'], utils.WINDOW_WIDTH_1H*2)
+    y_pred = model(X)
+
+    evaluate(y, y_pred, 'Dense', graph=True)
+
+
+def conv(df):
     df_train = df[:int(len(df)*0.8)]
-    df_eval = df[int(len(df)*0.8):]
+    df_test = df[int(len(df)*0.8):]
+    headers = [utils.ist_l, 'quater', 'weekday', 'grad1', 'grad2', 'grad3']
+
+    X, y = create_window2(df_train[headers], df_train['cho2'], utils.WINDOW_WIDTH_1H*2)
+
+    model = tf.keras.models.Sequential([
+		tf.keras.layers.Conv1D(filters=utils.WINDOW_WIDTH_1H*2,
+                           kernel_size=(utils.WINDOW_WIDTH_1H*2,),
+                           activation='relu'),
+        tf.keras.layers.Dense(units=32, activation='relu'),
+        tf.keras.layers.Dense(units=1)
+	])
+
+    model.compile(loss=tf.losses.MeanSquaredError(), optimizer=tf.optimizers.Adam(), metrics=[tf.metrics.MeanAbsoluteError()])
+    model.fit(X, y, epochs=50, batch_size= 32,  shuffle=False)
+
+    X, y = create_window(df_test[headers], df_test['cho2'], utils.WINDOW_WIDTH_1H*2)
+    y_pred = model(X)
+
+    evaluate(y, y_pred, 'CONV1', graph=True)
+
+def lstm(df):
+    df_train = df[:int(len(df)*0.8)]
+    df_test = df[int(len(df)*0.8):]
     headers = [utils.ist_l, 'weekday', 'grad1', 'grad2', 'grad3']
 
     X, y = create_window(df_train[headers], df_train['cho2'], utils.WINDOW_WIDTH_1H*2)

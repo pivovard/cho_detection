@@ -21,7 +21,7 @@ def to_datetime(df, column):
 def process_time(df):
     time = df['datetime'].apply(lambda date : date.time())
     df['hour'] = time.apply(lambda t: t.hour)
-    df['quater'] = time.apply(lambda t: t.hour*10 + (t.minute/40)*4)
+    df['quarter'] = time.apply(lambda t: t.hour*10 + (t.minute/40)*4)
     df['timestamp'] = time.apply(lambda t: (t.hour * 60 + t.minute) * 60 + t.second)
     df['weekday'] = df['datetime'].apply(lambda date: date.weekday())
 

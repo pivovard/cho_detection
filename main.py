@@ -35,6 +35,7 @@ df = load_data.load_data(patientID=ID, from_file=True,
 # nn.predict(model, window)
 
 # cho_detection.LDA(df)
-cho_detection.LSTM(df)
+cho_detection.conv(df)
+cho_detection.dense(df)
 
 plt.show()

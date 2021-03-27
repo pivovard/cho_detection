@@ -187,6 +187,7 @@ def calc_gradient(df):
 def plot_graph(df, begin=0, end=0, title='24h'):
     if end==0:
         end=len(df)
+    datetime = df['datetime'][begin:end]
 
     fig = plt.figure(figsize=(12, 8))
     fig.canvas.set_window_title(title)
@@ -195,30 +196,31 @@ def plot_graph(df, begin=0, end=0, title='24h'):
 
     plt.subplot(3, 1, 1)
     plt.title('Interstitial glucose')
-    plt.plot(df['datetime'][begin:end], df[utils.ist_l][begin:end], label=utils.ist_l)
-    plt.scatter(df['datetime'][begin:end], df[utils.cho_l][begin:end], label=utils.cho_l, c='g', s=10)
+    plt.plot(datetime, df[utils.ist_l][begin:end], label=utils.ist_l)
+    plt.scatter(datetime, df[utils.cho_l][begin:end], label=utils.cho_l, c='g', s=10)
     #plt.xticks(rotation=50)
     plt.legend()
 
     plt.subplot(3, 1, 2)
     plt.title('Carbohydrate intake, PA, Insulin')
-    plt.scatter(df['datetime'][begin:end], df[utils.cho_l][begin:end], label=utils.cho_l, c='g', s=10)
-    plt.scatter(df['datetime'][begin:end], df[utils.phy_l][begin:end], label=utils.phy_l, c='r', s=10)
-    plt.scatter(df['datetime'][begin:end], df[utils.inb_l][begin:end], label=utils.inb_l, c='k', s=10)
-    plt.scatter(df['datetime'][begin:end], df[utils.inr_l][begin:end], label=utils.inr_l, c='c', s=10)
+    plt.scatter(datetime, df[utils.cho_l][begin:end], label=utils.cho_l, c='g', s=10)
+    plt.scatter(datetime, df[utils.phy_l][begin:end], label=utils.phy_l, c='r', s=10)
+    plt.scatter(datetime, df[utils.inb_l][begin:end], label=utils.inb_l, c='k', s=10)
+    plt.scatter(datetime, df[utils.inr_l][begin:end], label=utils.inr_l, c='c', s=10)
     #plt.xticks(rotation=50)
     plt.legend()
 
     plt.subplot(3, 1, 3)
     plt.title('Carbohydrate intake')
-    plt.scatter(df['datetime'][begin:end], df['cho2'][begin:end], label='cho2', s=6)
-    plt.scatter(df['datetime'][begin:end], df[utils.cho_l][begin:end], label='cho', s=10)
+    plt.scatter(datetime, df['cho2'][begin:end], label='cho2', s=6)
+    plt.scatter(datetime, df[utils.cho_l][begin:end], label='cho', s=10)
     plt.legend()
     plt.ylabel('[g]')
 
 def plot_derivations(df, der, grad, begin=0, end=0, title=''):
     if end==0:
         end=len(df)
+    datetime = df['datetime'][begin:end]
 
     # Derivations
     if der:
@@ -227,20 +229,20 @@ def plot_derivations(df, der, grad, begin=0, end=0, title=''):
         fig.suptitle('Derivations')
 
         plt.subplot(4, 1, 1)
-        plt.plot(df['datetime'][begin:end], df[utils.ist_l][begin:end], label='ist')
+        plt.plot(datetime, df[utils.ist_l][begin:end], label='ist')
         plt.legend()
         plt.ylabel('Interstitial glucose [mmol/l]')
 
         plt.subplot(4, 1, 2)
-        plt.plot(df['datetime'][begin:end], df['der1'][begin:end], label='der1 [mmol/l^2]')
+        plt.plot(datetime, df['der1'][begin:end], label='der1 [mmol/l^2]')
         plt.legend()
 
         plt.subplot(4, 1, 3)
-        plt.plot(df['datetime'][begin:end], df['der2'][begin:end], label='der2 [mmol/l^2]')
+        plt.plot(datetime, df['der2'][begin:end], label='der2 [mmol/l^2]')
         plt.legend()
 
         plt.subplot(4, 1, 4)
-        plt.plot(df['datetime'][begin:end], df['der3'][begin:end], label='der3 [mmol/l^4]')
+        plt.plot(datetime, df['der3'][begin:end], label='der3 [mmol/l^4]')
         plt.legend()
 
     # Gradient
@@ -250,20 +252,20 @@ def plot_derivations(df, der, grad, begin=0, end=0, title=''):
         fig.suptitle('Gradient '+ title)
 
         plt.subplot(4, 1, 1)
-        plt.plot(df['datetime'][begin:end], df[utils.ist_l][begin:end], label='ist')
+        plt.plot(datetime, df[utils.ist_l][begin:end], label='ist')
         plt.legend()
         plt.ylabel('Interstitial glucose [mmol/l]')
 
         plt.subplot(4, 1, 2)
-        plt.plot(df['datetime'][begin:end], df['grad1'][begin:end], label='grad1 [mmol/l^2]')
+        plt.plot(datetime, df['grad1'][begin:end], label='grad1 [mmol/l^2]')
         plt.legend()
 
         plt.subplot(4, 1, 3)
-        plt.plot(df['datetime'][begin:end], df['grad2'][begin:end], label='grad2 [mmol/l^2]')
+        plt.plot(datetime, df['grad2'][begin:end], label='grad2 [mmol/l^2]')
         plt.legend()
 
         plt.subplot(4, 1, 4)
-        plt.plot(df['datetime'][begin:end], df['grad3'][begin:end], label='grad3 [mmol/l^4]')
+        plt.plot(datetime, df['grad3'][begin:end], label='grad3 [mmol/l^4]')
         plt.legend()
 
 def load_data(patientID, from_file=False, fill_missing=False, norm=False, der=False, grad=True,

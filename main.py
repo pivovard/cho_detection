@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 
 import load_log
 import load_data
-import cho_detection
+from cho_detection import ChoDetector
 from WindowGenerator import WindowGenerator
 import nn
 import utils
@@ -32,9 +32,7 @@ plt.show()
 
 # nn.predict(model, window)
 
-# cho_detection.dense(df)
-# cho_detection.conv(df)
-# cho_detection.lstm(df)
-cho_detection.LDA(df)
+cho = ChoDetector(df, True)
+cho.lda()
 
 plt.show()

@@ -13,9 +13,13 @@ from sklearn.preprocessing import OneHotEncoder
 from datetime import timedelta
 import utils
 
-# model = nn_cho.compile(df, headers, utils.cho_l, utils.WINDOW_WIDTH_1H*3)
+class ChoDetector():
+    def __init__(self, df, graph):
+        self.df_train = df[:int(len(df)*0.8)]
+        self.df_test = df[int(len(df)*0.8):]
+        self.graph = graph
 
-def plot_eval(y_label, y_pred, TP, FN, FP, begin=0, end=0, title=''):
+def plot_eval(self, y_label, y_pred, TP, FN, FP, begin=0, end=0, title=''):
     if end==0:
         end=len(y_label)
 
@@ -23,26 +27,31 @@ def plot_eval(y_label, y_pred, TP, FN, FP, begin=0, end=0, title=''):
     fig.canvas.set_window_title(title)
     fig.suptitle(title)
 
+    datetime = self.df_test['datetime'][begin:end]
+
     plt.subplot(4, 1, 1)
     plt.title('Predicted CHO')
-    plt.scatter(range(end-begin), y_pred[begin:end], label='predicted', s=6)
-    plt.scatter(range(end-begin), y_label[begin:end], label='label', s=6)
+    plt.scatter(datetime, y_pred[begin:end], label='predicted', s=6)
+    plt.scatter(datetime, y_label[begin:end], label='label', s=6)
+    # plt.plot(range(end-begin), self.df_test[begin:end])
     plt.legend()
 
     plt.subplot(4, 1, 2)
     plt.title('TP')
-    plt.scatter(range(end-begin), TP[begin:end], s=6)
+    plt.scatter(datetime, TP[begin:end], s=6)
 
     plt.subplot(4, 1, 3)
     plt.title('FN')
-    plt.scatter(range(end-begin), FN[begin:end], s=6)
+    plt.scatter(datetime, FN[begin:end], s=6)
 
     plt.subplot(4, 1, 4)
     plt.title('FP')
-    plt.scatter(range(end-begin), FP[begin:end], s=6)
+    plt.scatter(datetime, FP[begin:end], s=6)
+
+ChoDetector.plot_eval = plot_eval
 
 
-def evaluate(y_label, y_pred, treshold=0, method='', graph=True):
+def evaluate(self, y_label, y_pred, treshold=0, method=''):
     n = len(y_label)
     TP = np.zeros(n)
     FN = np.zeros(n)
@@ -76,9 +85,11 @@ def evaluate(y_label, y_pred, treshold=0, method='', graph=True):
     S= np.count_nonzero(TP)/(np.count_nonzero(TP)+np.count_nonzero(FN))
     print(f'S={S*100}%')
 
-    if graph:
-        plot_eval(y_label, y_pred, TP, FN, FP, title=f'{method}: All predicted values')
+    if self.graph:
+        self.plot_eval(y_label, y_pred, TP, FN, FP, title=f'{method}: All predicted values')
         # plot_eval(y_label, y_pred, TP, FN, FP, end=utils.WINDOW_WIDTH_24H*2, title=f'{method}: 48h predicted')
+
+ChoDetector.evaluate = evaluate
 
 def create_window(df, y_label, width):
     #shape (number of windows, window width, columns count)
@@ -100,12 +111,9 @@ def window_stack(a, stepsize=1, width=12):
     n = a.shape[0]
     return np.hstack( a[i:1+n+i-width:stepsize] for i in range(0,width) )
 
-def dense(df):
-    df_train = df[:int(len(df)*0.8)]
-    df_test = df[int(len(df)*0.8):]
+def dense(self):
     headers = [utils.ist_l, 'hour', 'weekday', 'der1', 'grad1', 'grad2', 'grad3']
-
-    X, y = create_window2(df_train[headers], df_train['cho2'], utils.WINDOW_WIDTH_1H*2, 6)
+    X, y = create_window2(self.df_train[headers], self.df_train['cho2'], utils.WINDOW_WIDTH_1H*2, 6)
 
     model = tf.keras.Sequential([
         # Shape: (time, features) => (time*features)
@@ -118,18 +126,16 @@ def dense(df):
     model.compile(loss=tf.losses.MeanSquaredError(), optimizer=tf.optimizers.Adam(), metrics=[tf.metrics.MeanAbsoluteError()])
     model.fit(X, y, epochs=100, batch_size= 32,  shuffle=False)
 
-    X, y = create_window(df_test[headers], df_test['Carbohydrate intake'], utils.WINDOW_WIDTH_1H*2)
+    X, y = create_window(self.df_test[headers], self.df_test['Carbohydrate intake'], utils.WINDOW_WIDTH_1H*2)
     y_pred = model(X)
 
-    evaluate(y, y_pred, 15, 'Dense', graph=True)
+    self.evaluate(y, y_pred, 15, 'Dense', graph=True)
 
+ChoDetector.dense = dense
 
-def conv(df):
-    df_train = df[:int(len(df)*0.8)]
-    df_test = df[int(len(df)*0.8):]
+def conv(self):
     headers = [utils.ist_l, 'quarter', 'weekday', 'der1', 'grad1', 'grad2', 'grad3']
-
-    X, y = create_window2(df_train[headers], df_train['cho2'], utils.WINDOW_WIDTH_1H*2, 6)
+    X, y = create_window2(self.df_train[headers], self.df_train['cho2'], utils.WINDOW_WIDTH_1H*2, 6)
 
     model = tf.keras.models.Sequential([
 		tf.keras.layers.Conv1D(filters=3,
@@ -142,17 +148,17 @@ def conv(df):
     model.compile(loss=tf.losses.MeanSquaredError(), optimizer=tf.optimizers.Adam(), metrics=[tf.metrics.MeanAbsoluteError()])
     model.fit(X, y, epochs=100, batch_size= 32,  shuffle=False)
 
-    X, y = create_window(df_test[headers], df_test['Carbohydrate intake'], utils.WINDOW_WIDTH_1H*2)
+    X, y = create_window(self.df_test[headers], self.df_test['Carbohydrate intake'], utils.WINDOW_WIDTH_1H*2)
     y_pred = model(X)
 
-    evaluate(y, y_pred, 15, 'CONV1', graph=True)
+    self.evaluate(y, y_pred, 15, 'CONV1', graph=True)
 
-def lstm(df):
-    df_train = df[:int(len(df)*0.8)]
-    df_test = df[int(len(df)*0.8):]
+ChoDetector.conv = conv
+
+def lstm(self):
     headers = [utils.ist_l, 'der1', 'grad1', 'grad2', 'grad3']
 
-    X, y = create_window2(df_train[headers], df_train['cho2'], utils.WINDOW_WIDTH_1H*2, 12)
+    X, y = create_window2(self.df_train[headers], self.df_train['cho2'], utils.WINDOW_WIDTH_1H*2, 12)
 
     model = tf.keras.Sequential()
     model.add(
@@ -179,57 +185,60 @@ def lstm(df):
     model.compile(loss=tf.losses.MeanSquaredError(), optimizer=tf.optimizers.Adam(), metrics=[tf.metrics.MeanAbsoluteError()])
     model.fit(X, y, epochs=50, batch_size= 32,  shuffle=False)
 
-    X, y = create_window(df_test[headers], df_test['Carbohydrate intake'], utils.WINDOW_WIDTH_1H*2)
+    X, y = create_window(self.df_test[headers], self.df_test['Carbohydrate intake'], utils.WINDOW_WIDTH_1H*2)
     y_pred = model(X)
     # y_pred=y_pred[:,-1,0]
 
-    evaluate(y, y_pred, 0.15, 'LSTM', graph=True)
+    self.evaluate(y, y_pred, 0.15, 'LSTM', graph=True)
+
+ChoDetector.conv = conv
 
 
-def LDA(df):
+def lda(self):
     lda = LinearDiscriminantAnalysis(solver="svd", store_covariance=True)
     qda = QuadraticDiscriminantAnalysis(store_covariance=True)
-
-    headers = [utils.ist_l, 'quarter', 'weekday', 'der1', 'grad1', 'grad2', 'grad3']
-    df['product'] = np.ones(len(df))
-    for i, col in enumerate(headers):
-        df['product'] = df['product'] * df[col]
-
-    df_train = df[:int(len(df)*0.8)]
-    df_eval = df[int(len(df)*0.8):]
     
-    
-    X = window_stack(df_train[[utils.ist_l]])
-    y = df_train['cho2_b'][11:]
+
+    X = window_stack(self.df_train[[utils.ist_l]])
+    y = self.df_train['cho2_b'][11:]
     lda.fit(X, y)
     qda.fit(X, y)
 
-    X = window_stack(df_eval[[utils.ist_l]])
-    y = df_eval['cho2_b'][11:]
+    X = window_stack(self.df_test[[utils.ist_l]])
+    y = self.df_test['cho2_b'][11:]
     y_pred=lda.predict(X)
-    evaluate(y, y_pred, 0, 'LDA window')
+    self.evaluate(y, y_pred, 0, 'LDA window')
     y_pred=qda.predict(X)
-    evaluate(y, y_pred, 0, 'QDA window')
+    self.evaluate(y, y_pred, 0, 'QDA window')
 
 
     headers = [utils.ist_l, 'hour', 'quarter', 'weekday', 'der1', 'grad1', 'grad2', 'grad3', 'Steps']
-    lda.fit(df_train[headers], df_train['cho2_b'])
-    qda.fit(df_train[headers], df_train['cho2_b'])
+    lda.fit(self.df_train[headers], self.df_train['cho2_b'])
+    qda.fit(self.df_train[headers], self.df_train['cho2_b'])
     
-    y_pred=lda.predict(df_eval[headers])
-    evaluate(df_eval['cho2_b'], y_pred, 0, 'LDA multiple values')
-    y_pred=qda.predict(df_eval[headers])
-    evaluate(df_eval['cho2_b'], y_pred, 0, 'QDA multiple values')
+    y_pred=lda.predict(self.df_test[headers])
+    self.evaluate(self.df_test['cho2_b'], y_pred, 0, 'LDA multiple values')
+    y_pred=qda.predict(self.df_test[headers])
+    self.evaluate(self.df_test['cho2_b'], y_pred, 0, 'QDA multiple values')
 
 
-    X = window_stack(df_train[['product']])
-    y = df_train['cho2_b'][11:]
+    headers = [utils.ist_l, 'quarter', 'weekday', 'der1', 'grad1', 'grad2', 'grad3']
+    self.df_train['product'] = np.ones(len(self.df_train))
+    self.df_test['product'] = np.ones(len(self.df_test))
+    for i, col in enumerate(headers):
+        self.df_train['product'] = self.df_train['product'] * self.df_train[col]    
+        self.df_test['product'] = self.df_test['product'] * self.df_test[col]    
+
+    X = window_stack(self.df_train[['product']])
+    y = self.df_train['cho2_b'][11:]
     lda.fit(X, y)
     qda.fit(X, y)
 
-    X = window_stack(df_eval[['product']])
-    y = df_eval['cho2_b'][11:]
+    X = window_stack(self.df_test[['product']])
+    y = self.df_test['cho2_b'][11:]
     y_pred=lda.predict(X)
-    evaluate(y, y_pred, 0, 'LDA window multiple values')
+    self.evaluate(y, y_pred, 0, 'LDA window multiple values')
     y_pred=qda.predict(X)
-    evaluate(y, y_pred, 0, 'QDA window multiple values')
+    self.evaluate(y, y_pred, 0, 'QDA window multiple values')
+
+ChoDetector.lda = lda

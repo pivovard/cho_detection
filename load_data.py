@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import sweetviz
 
 from scipy import interpolate
+from scipy.interpolate import Akima1DInterpolator
 
 from tabulate import tabulate
 from datetime import datetime
@@ -60,10 +61,14 @@ def get_ist(df, fill_missing):
             | df['requested insulin basal rate'].notna()
             | df['Steps'].notna()]
     
-    if fill_missing:
+    if fill_missing != '':
         print("\nFilling missing values...")
         delta = timedelta(minutes=10)
         mean = df_ist[utils.ist_l].mean()
+        spline = None
+        if fill_missing == 'akima':
+            spline = Akima1DInterpolator(df_ist['datetime'],df_ist[utils.ist_l])
+
         for i in range(len(df_ist)-1):
             d1= df_ist.loc[i, 'datetime']
             d2= df_ist.loc[i+1, 'datetime']
@@ -74,7 +79,10 @@ def get_ist(df, fill_missing):
                 df_tmp = pd.DataFrame([[np.nan for i in df.columns] for i in range(count-1)], columns=df.columns, dtype=float)
                 df_tmp['datetime'] = pd.to_datetime(dates)
                 # Set ist value
-                ist = np.array([mean for i in range(count-1)])
+                if fill_missing == 'mean':
+                    ist = np.array([mean for i in range(count-1)])
+                elif fill_missing == 'akima':
+                    ist = spline(df_tmp['datetime'])
                 df_tmp[utils.ist_l] = ist
                 print(f'Between {d1} and {d2} add {dates[0]} - {dates[-1]}')
                 df = df.append(df_tmp, ignore_index=True)
@@ -139,7 +147,7 @@ def get_cho(df):
     return df
 
 #NaN -> 0, - -> 0
-def clean_data(df):
+def replace_nan(df):
     date_time = df.pop('datetime')
 
     #replace NaN values
@@ -158,30 +166,39 @@ def normalize(df):
         df[f'{column}'] = df[column].apply(lambda t: (t-m)/d)
     return df
 
-def calc_derivations(df):
+def calc_derivations(df, type):
     print('\nCalculating derivations...')
-    der = pd.DataFrame(columns=['der1', 'der2', 'der3'], dtype=float)
     delta = timedelta(minutes=5).total_seconds()
-    for i in range(len(df)-1):
-        utils.printProgressBar(i, len(df)-1)
-        if (df.loc[i+1,'datetime']-df.loc[i,'datetime']) > timedelta(minutes=5) or df.loc[i,utils.ist_l] == 0 or df.loc[i+1,utils.ist_l] == 0:
-            der.loc[i] = [0,0,0]
-            continue
-        der1=(df.loc[i+1,utils.ist_l]-df.loc[i,utils.ist_l])/delta
-        der2=der1/delta
-        der3=der2/delta
-        der.loc[i] = [der1,der2,der3]
-
-    # der = pd.concat([pd.DataFrame([0,0,0]), der], ignore_index=True)
-    return pd.concat([df, der], axis=1)
-
-def calc_gradient(df):
-    print('\nCalculating gradient...')
-    delta = timedelta(minutes=5).total_seconds()
-    #delta = (1/24)/12
-    df['grad1'] = np.gradient(df[utils.ist_l], delta, edge_order=2)
-    df['grad2'] = np.gradient(df['grad1'], delta, edge_order=2)
-    df['grad3'] = np.gradient(df['grad2'], delta, edge_order=2)
+    
+    if type == 'akima':
+        akima = Akima1DInterpolator(df['datetime'], df['Interstitial glucose'])
+        der1 = akima.derivative(1)
+        df['d1'] = der1(df['datetime'])
+        der2 = akima.derivative(2)
+        df['d2'] = der2(df['datetime'])
+        der3 = akima.derivative(3)
+        df['d3'] = der3(df['datetime'])
+    elif type == 'splrep':
+        tck = interpolate.splrep(range(len(df)), df['Interstitial glucose'])
+        df['d1'] = interpolate.splev(range(len(df)), tck, der=1)
+        df['d2'] = interpolate.splev(range(len(df)), tck, der=2)
+        df['d3'] = interpolate.splev(range(len(df)), tck, der=3)
+    elif type == 'gradient':
+        df['d1'] = np.gradient(df[utils.ist_l], delta, edge_order=2)
+        df['d2'] = np.gradient(df['d1'], delta, edge_order=2)
+        df['d3'] = np.gradient(df['d2'], delta, edge_order=2)
+    elif type == 'manual':
+        der = pd.DataFrame(columns=['d1', 'd2', 'd3'], dtype=float)
+        for i in range(len(df)-1):
+            utils.printProgressBar(i, len(df)-1)
+            if (df.loc[i+1,'datetime']-df.loc[i,'datetime']) > timedelta(minutes=5) or df.loc[i,utils.ist_l] == 0 or df.loc[i+1,utils.ist_l] == 0:
+                der.loc[i] = [0,0,0]
+                continue
+            der1=(df.loc[i+1,utils.ist_l]-df.loc[i,utils.ist_l])/delta
+            der2=der1/delta
+            der3=der2/delta
+            der.loc[i] = [der1,der2,der3]
+        df = pd.concat([df, der], axis=1)
     return df
 
 def plot_graph(df, begin=0, end=0, title='24h'):
@@ -197,7 +214,7 @@ def plot_graph(df, begin=0, end=0, title='24h'):
     plt.subplot(3, 1, 1)
     plt.title('Interstitial glucose')
     plt.plot(datetime, df[utils.ist_l][begin:end], label=utils.ist_l)
-    plt.scatter(datetime, df[utils.cho_l][begin:end], label=utils.cho_l, c='g', s=10)
+    # plt.scatter(datetime, df[utils.cho_l][begin:end], label=utils.cho_l, c='g', s=10)
     #plt.xticks(rotation=50)
     plt.legend()
 
@@ -217,58 +234,30 @@ def plot_graph(df, begin=0, end=0, title='24h'):
     plt.legend()
     plt.ylabel('[g]')
 
-def plot_derivations(df, der, grad, begin=0, end=0, title=''):
+def plot_derivations(df, begin=0, end=0, title=''):
     if end==0:
         end=len(df)
     datetime = df['datetime'][begin:end]
 
     # Derivations
-    if der:
-        fig = plt.figure(figsize=(12, 8))
-        fig.canvas.set_window_title('Derivations')
-        fig.suptitle('Derivations')
+    fig = plt.figure(figsize=(12, 8))
+    fig.canvas.set_window_title('Derivations')
+    fig.suptitle('Derivations')
+    plt.subplot(4, 1, 1)
+    plt.plot(datetime, df[utils.ist_l][begin:end], label='ist')
+    plt.legend()
+    plt.ylabel('Interstitial glucose [mmol/l]')
+    plt.subplot(4, 1, 2)
+    plt.plot(datetime, df['d1'][begin:end], label='d1 [mmol/l/t^2]')
+    plt.legend()
+    plt.subplot(4, 1, 3)
+    plt.plot(datetime, df['d2'][begin:end], label='d2 [mmol/l/t^3]')
+    plt.legend()
+    plt.subplot(4, 1, 4)
+    plt.plot(datetime, df['d3'][begin:end], label='d3 [mmol/l/t^4]')
+    plt.legend()
 
-        plt.subplot(4, 1, 1)
-        plt.plot(datetime, df[utils.ist_l][begin:end], label='ist')
-        plt.legend()
-        plt.ylabel('Interstitial glucose [mmol/l]')
-
-        plt.subplot(4, 1, 2)
-        plt.plot(datetime, df['der1'][begin:end], label='der1 [mmol/l^2]')
-        plt.legend()
-
-        plt.subplot(4, 1, 3)
-        plt.plot(datetime, df['der2'][begin:end], label='der2 [mmol/l^2]')
-        plt.legend()
-
-        plt.subplot(4, 1, 4)
-        plt.plot(datetime, df['der3'][begin:end], label='der3 [mmol/l^4]')
-        plt.legend()
-
-    # Gradient
-    if grad:
-        fig = plt.figure(figsize=(12, 8))
-        fig.canvas.set_window_title('Gradient '+ title)
-        fig.suptitle('Gradient '+ title)
-
-        plt.subplot(4, 1, 1)
-        plt.plot(datetime, df[utils.ist_l][begin:end], label='ist')
-        plt.legend()
-        plt.ylabel('Interstitial glucose [mmol/l]')
-
-        plt.subplot(4, 1, 2)
-        plt.plot(datetime, df['grad1'][begin:end], label='grad1 [mmol/l^2]')
-        plt.legend()
-
-        plt.subplot(4, 1, 3)
-        plt.plot(datetime, df['grad2'][begin:end], label='grad2 [mmol/l^2]')
-        plt.legend()
-
-        plt.subplot(4, 1, 4)
-        plt.plot(datetime, df['grad3'][begin:end], label='grad3 [mmol/l^4]')
-        plt.legend()
-
-def load_data(patientID, from_file=False, fill_missing=False, norm=False, der=False, grad=True,
+def load_data(patientID, from_file=False, fill_missing='', norm=False, derivation='', 
               verbose=True, graphs=False, analyze=False):
     if from_file:
         utils.print_h('Loading data from file.')
@@ -289,11 +278,8 @@ def load_data(patientID, from_file=False, fill_missing=False, norm=False, der=Fa
         df = get_cho(df)
         df = process_time(df)
 
-        # derivations
-        if(der):
-            df = calc_derivations(df)
-        if(grad):
-            df = calc_gradient(df)
+        if derivation != '':
+            df = calc_derivations(df, derivation)
         if(norm):
             df = normalize(df)
 
@@ -310,9 +296,9 @@ def load_data(patientID, from_file=False, fill_missing=False, norm=False, der=Fa
 
     if graphs:
         plot_graph(df, title = 'Whole dataset') 
-        #plot_graph(df, end=288, title = '24h dataset')
-        plot_derivations(df, der, grad, title = 'Whole dataset')
-        #plot_derivations(df, der, grad, end=288, title = '24h dataset')
+        plot_graph(df, end=288, title = '24h dataset')
+        plot_derivations(df, title = 'Whole dataset')
+        plot_derivations(df, end=288, title = '24h dataset')
 
-    df = clean_data(df)
+    # df = replace_nan(df)
     return df

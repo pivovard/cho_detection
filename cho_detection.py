@@ -8,7 +8,6 @@ from matplotlib import colors
 from scipy import linalg
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
-from sklearn.preprocessing import OneHotEncoder
 
 from datetime import timedelta
 import utils
@@ -63,9 +62,9 @@ def evaluate(self, y_label, y_pred, treshold=0, method=''):
     for i, y in enumerate(y_label):
         if y > 0:
             if n - i >= w:
-                y_elements = y_pred[i:i+w]
+                y_elements = y_pred[i-2:i+w]
             else:
-                y_elements = y_pred[i:]
+                y_elements = y_pred[i-2:]
             if np.any(y_elements > treshold):
                 TP[i] = True
             else:
@@ -112,7 +111,7 @@ def window_stack(a, stepsize=1, width=12):
     return np.hstack( a[i:1+n+i-width:stepsize] for i in range(0,width) )
 
 def dense(self):
-    headers = [utils.ist_l, 'hour', 'weekday', 'der1', 'grad1', 'grad2', 'grad3']
+    headers = [utils.ist_l, 'hour', 'weekday', 'd1', 'd2', 'd3']
     X, y = create_window2(self.df_train[headers], self.df_train['cho2'], utils.WINDOW_WIDTH_1H*2, 6)
 
     model = tf.keras.Sequential([
@@ -134,7 +133,7 @@ def dense(self):
 ChoDetector.dense = dense
 
 def conv(self):
-    headers = [utils.ist_l, 'quarter', 'weekday', 'der1', 'grad1', 'grad2', 'grad3']
+    headers = [utils.ist_l, 'quarter', 'weekday', 'd1', 'd2', 'd3']
     X, y = create_window2(self.df_train[headers], self.df_train['cho2'], utils.WINDOW_WIDTH_1H*2, 6)
 
     model = tf.keras.models.Sequential([
@@ -156,7 +155,7 @@ def conv(self):
 ChoDetector.conv = conv
 
 def lstm(self):
-    headers = [utils.ist_l, 'der1', 'grad1', 'grad2', 'grad3']
+    headers = [utils.ist_l, 'd1', 'd2', 'd3']
 
     X, y = create_window2(self.df_train[headers], self.df_train['cho2'], utils.WINDOW_WIDTH_1H*2, 12)
 
@@ -189,53 +188,58 @@ def lstm(self):
     y_pred = model(X)
     # y_pred=y_pred[:,-1,0]
 
-    self.evaluate(y, y_pred, 0.15, 'LSTM', graph=True)
+    self.evaluate(y, y_pred, 0.15, 'LSTM')
 
 ChoDetector.conv = conv
 
+def replace_nan(df):
+    df_clean = df.fillna(0)
+    return df_clean
 
 def lda(self):
     lda = LinearDiscriminantAnalysis(solver="svd", store_covariance=True)
     qda = QuadraticDiscriminantAnalysis(store_covariance=True)
     
+    df_train = replace_nan(self.df_train)
+    df_test = replace_nan(self.df_test)
 
-    X = window_stack(self.df_train[[utils.ist_l]])
-    y = self.df_train['cho2_b'][11:]
+    X = window_stack(df_train[[utils.ist_l]])
+    y = df_train['cho2_b'][11:]
     lda.fit(X, y)
     qda.fit(X, y)
 
-    X = window_stack(self.df_test[[utils.ist_l]])
-    y = self.df_test['cho2_b'][11:]
+    X = window_stack(df_test[[utils.ist_l]])
+    y = df_test['cho_b'][11:]
     y_pred=lda.predict(X)
     self.evaluate(y, y_pred, 0, 'LDA window')
     y_pred=qda.predict(X)
     self.evaluate(y, y_pred, 0, 'QDA window')
 
 
-    headers = [utils.ist_l, 'hour', 'quarter', 'weekday', 'der1', 'grad1', 'grad2', 'grad3', 'Steps']
-    lda.fit(self.df_train[headers], self.df_train['cho2_b'])
-    qda.fit(self.df_train[headers], self.df_train['cho2_b'])
+    headers = [utils.ist_l, 'hour', 'quarter', 'weekday', 'd1', 'd2', 'd3', 'Steps']
+    lda.fit(df_train[headers], df_train['cho2_b'])
+    qda.fit(df_train[headers], df_train['cho2_b'])
     
-    y_pred=lda.predict(self.df_test[headers])
-    self.evaluate(self.df_test['cho2_b'], y_pred, 0, 'LDA multiple values')
-    y_pred=qda.predict(self.df_test[headers])
-    self.evaluate(self.df_test['cho2_b'], y_pred, 0, 'QDA multiple values')
+    y_pred=lda.predict(df_test[headers])
+    self.evaluate(df_test['cho_b'], y_pred, 0, 'LDA multiple values')
+    y_pred=qda.predict(df_test[headers])
+    self.evaluate(df_test['cho_b'], y_pred, 0, 'QDA multiple values')
 
 
-    headers = [utils.ist_l, 'quarter', 'weekday', 'der1', 'grad1', 'grad2', 'grad3']
-    self.df_train['product'] = np.ones(len(self.df_train))
-    self.df_test['product'] = np.ones(len(self.df_test))
+    headers = [utils.ist_l, 'quarter', 'weekday', 'd1', 'd2', 'd3']
+    df_train['product'] = np.ones(len(df_train))
+    df_test['product'] = np.ones(len(df_test))
     for i, col in enumerate(headers):
-        self.df_train['product'] = self.df_train['product'] * self.df_train[col]    
-        self.df_test['product'] = self.df_test['product'] * self.df_test[col]    
+        df_train['product'] = df_train['product'] * df_train[col]    
+        df_test['product'] = df_test['product'] * df_test[col]    
 
-    X = window_stack(self.df_train[['product']])
+    X = window_stack(df_train[['product']])
     y = self.df_train['cho2_b'][11:]
     lda.fit(X, y)
     qda.fit(X, y)
 
-    X = window_stack(self.df_test[['product']])
-    y = self.df_test['cho2_b'][11:]
+    X = window_stack(df_test[['product']])
+    y = df_test['cho_b'][11:]
     y_pred=lda.predict(X)
     self.evaluate(y, y_pred, 0, 'LDA window multiple values')
     y_pred=qda.predict(X)

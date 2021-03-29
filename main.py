@@ -14,8 +14,8 @@ ID = 570
 # load_log.load_log(patientID=ID)
 
 # Load data from csv file
-# df = load_data.load_data(patientID=ID, fill_missing=True, norm=True, der=True, grad=True,
-#                          verbose=True, graphs=False, analyze=False)
+df = load_data.load_data(patientID=ID, fill_missing='akima', norm=True, derivation='akima',
+                         verbose=True, graphs=True, analyze=True)
 # Load modified data from file
 df = load_data.load_data(patientID=ID, from_file=True,
                          verbose=True, graphs=False, analyze=False)

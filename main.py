@@ -10,16 +10,22 @@ import utils
 # wrong 540
 # good  570 575
 ID = 575
+IDs=[540,544,552,559,563,567,570,575,584,588,591,596]
+IDs=[559,563,567,588]
 
 # Parse log file to csv file
 # load_log.load_log(patientID=ID)
+load_log.load_log_all(IDs)
 
 # Load data from csv file
-# df = load_data.load_data(patientID=ID, fill_missing='', smooth='savgol', derivation='manual', norm=False,
+# df = load_data.load_data(patientID=ID, fill_missing='', smooth='savgol', derivation='manual', norm='',
 #     verbose=True, graphs=True, analyze=False)
+# Load multiple csv files
+df = load_data.load_data_all(patientIDs=IDs, from_file=False,
+                             fill_missing='', smooth='savgol', derivation='manual', norm='')
 # Load modified data from file
-df = load_data.load_data(patientID=ID, from_file=True,
-                         verbose=True, graphs=False, analyze=False)
+# df = load_data.load_data(patientID=ID, from_file=True,
+#                          verbose=True, graphs=False, analyze=False)
 
 # plt.show()
 

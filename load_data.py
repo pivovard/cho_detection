@@ -277,7 +277,7 @@ def plot_derivations(df, begin=0, end=0, title=''):
     plt.plot(datetime, df['d3'][begin:end], label='d3 [mmol/l/t^4]')
     plt.legend()
 
-def load_data(patientID, from_file=False, fill_missing='', smooth='', derivation='', norm=False,
+def load_data(patientID, from_file=False, fill_missing='', smooth='', derivation='', norm='',
               verbose=True, graphs=False, analyze=False):
     if from_file:
         utils.print_h('Loading data from file.')
@@ -326,3 +326,17 @@ def load_data(patientID, from_file=False, fill_missing='', smooth='', derivation
 
     # df = replace_nan(df)
     return df
+
+def load_data_all(patientIDs, from_file, fill_missing='', smooth='', derivation='', norm=''):
+    utils.print_h('START')
+
+    dfs=pd.DataFrame()
+    for i, id in enumerate(patientIDs):
+        d=load_data(patientID=id, from_file=from_file,
+                    fill_missing=fill_missing, smooth=smooth, derivation=derivation, norm=norm)
+        dfs.append(d)
+    dfs.reset_index(drop=True)
+
+    utils.print_h('END')
+
+    return dfs

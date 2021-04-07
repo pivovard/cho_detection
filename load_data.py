@@ -5,6 +5,7 @@ import sweetviz
 
 from scipy import interpolate
 from scipy.interpolate import Akima1DInterpolator
+from scipy.signal import savgol_filter
 
 from tabulate import tabulate
 from datetime import datetime
@@ -62,11 +63,14 @@ def get_ist(df, fill_missing):
             | df['Steps'].notna()]
     
     if fill_missing != '':
-        print("\nFilling missing values...")
+        print(f'Filling missing values: {type}')
         delta = timedelta(minutes=10)
         mean = df_ist[utils.ist_l].mean()
         spline = None
-        if fill_missing == 'akima':
+        if fill_missing=='akima':
+            spline = Akima1DInterpolator(df_ist['datetime'],df_ist[utils.ist_l])
+        if fill_missing=='min':
+            delta = timedelta(minutes=2)
             spline = Akima1DInterpolator(df_ist['datetime'],df_ist[utils.ist_l])
 
         for i in range(len(df_ist)-1):
@@ -74,17 +78,23 @@ def get_ist(df, fill_missing):
             d2= df_ist.loc[i+1, 'datetime']
             diff = d2 - d1
             if diff > delta:
-                count = int(diff / timedelta(minutes=5))
-                dates = np.array([d1 + timedelta(minutes=i*5) for i in range(1, count)])
+                count=0
+                dates=[]
+                if fill_missing=='min':
+                    count = int(diff / timedelta(minutes=1))
+                    dates = np.array([d1 + timedelta(minutes=i*1) for i in range(1, count)])
+                else:
+                    count = int(diff / timedelta(minutes=5))
+                    dates = np.array([d1 + timedelta(minutes=i*5) for i in range(1, count)])
                 df_tmp = pd.DataFrame([[np.nan for i in df.columns] for i in range(count-1)], columns=df.columns, dtype=float)
                 df_tmp['datetime'] = pd.to_datetime(dates)
                 # Set ist value
                 if fill_missing == 'mean':
                     ist = np.array([mean for i in range(count-1)])
-                elif fill_missing == 'akima':
+                elif fill_missing == 'akima' or fill_missing=='min':
                     ist = spline(df_tmp['datetime'])
                 df_tmp[utils.ist_l] = ist
-                print(f'Between {d1} and {d2} add {dates[0]} - {dates[-1]}')
+                # print(f'Between {d1} and {d2} add {dates[0]} - {dates[-1]}')
                 df = df.append(df_tmp, ignore_index=True)
 
     df = df.sort_values('datetime').reset_index(drop=True)
@@ -135,6 +145,7 @@ def get_ist(df, fill_missing):
 
 def get_cho(df):
     print('\nProcessing CHO...')
+    df['cho'] = df['Carbohydrate intake']
     df['cho2'] = np.zeros(len(df))
     it = df.iterrows()
     for index, row in it:
@@ -158,20 +169,25 @@ def replace_nan(df):
     df_clean['datetime'] = date_time
     return df_clean
 
-def normalize(df):
-    print('\nNormalization')
-    for i, column in enumerate(['Interstitial glucose', 'Carbohydrate intake', 'cho2', 'Physical activity', 'requested insulin bolus', 'requested insulin basal rate', 'Steps']):
-        m = df[column].min()
-        d = df[column].max() - m
-        df[f'{column}'] = df[column].apply(lambda t: (t-m)/d)
+def normalize(df, type):
+    print(f'\nNormalization: {type}')
+    if type == 'std':
+        # for i, column in enumerate(['Interstitial glucose', 'ist', 'Carbohydrate intake', 'cho2', 'Physical activity', 'requested insulin bolus', 'requested insulin basal rate', 'Steps']):
+        for i, column in enumerate(['Interstitial glucose', 'ist']):
+            mean = df[column].mean()
+            std = df[column].std()
+            df[f'{column}'] = df[column].apply(lambda t: (t-mean)/std)
+    elif type == 'minmax':
+        for i, column in enumerate(['Interstitial glucose', 'ist', 'Carbohydrate intake', 'cho2', 'Physical activity', 'requested insulin bolus', 'requested insulin basal rate', 'Steps']):
+            m = df[column].min()
+            d = df[column].max() - m
+            df[f'{column}'] = df[column].apply(lambda t: (t-m)/d)
     return df
 
 def calc_derivations(df, type):
-    print('\nCalculating derivations...')
-    delta = timedelta(minutes=5).total_seconds()
-    
+    print(f'\nCalculating derivations: {type}')
     if type == 'akima':
-        akima = Akima1DInterpolator(df['datetime'], df['Interstitial glucose'])
+        akima = Akima1DInterpolator(df['datetime'], df['ist'])
         der1 = akima.derivative(1)
         df['d1'] = der1(df['datetime'])
         der2 = akima.derivative(2)
@@ -179,29 +195,33 @@ def calc_derivations(df, type):
         der3 = akima.derivative(3)
         df['d3'] = der3(df['datetime'])
     elif type == 'splrep':
-        tck = interpolate.splrep(range(len(df)), df['Interstitial glucose'])
+        tck = interpolate.splrep(range(len(df)), df['ist'])
         df['d1'] = interpolate.splev(range(len(df)), tck, der=1)
         df['d2'] = interpolate.splev(range(len(df)), tck, der=2)
         df['d3'] = interpolate.splev(range(len(df)), tck, der=3)
     elif type == 'gradient':
-        df['d1'] = np.gradient(df[utils.ist_l], delta, edge_order=2)
+        delta = 5
+        df['d1'] = np.gradient(df['ist'], delta, edge_order=2)
         df['d2'] = np.gradient(df['d1'], delta, edge_order=2)
         df['d3'] = np.gradient(df['d2'], delta, edge_order=2)
     elif type == 'manual':
         der = pd.DataFrame(columns=['d1', 'd2', 'd3'], dtype=float)
         for i in range(len(df)-1):
             utils.printProgressBar(i, len(df)-1)
-            if (df.loc[i+1,'datetime']-df.loc[i,'datetime']) > timedelta(minutes=5) or df.loc[i,utils.ist_l] == 0 or df.loc[i+1,utils.ist_l] == 0:
+            if (df.loc[i+1,'datetime']-df.loc[i,'datetime']) > timedelta(minutes=5) or df.loc[i,'ist'] == 0 or df.loc[i+1,'ist'] == 0:
                 der.loc[i] = [0,0,0]
                 continue
-            der1=(df.loc[i+1,utils.ist_l]-df.loc[i,utils.ist_l])/delta
-            der2=der1/delta
-            der3=der2/delta
-            der.loc[i] = [der1,der2,der3]
+            diff=df.loc[i+1,'ist']-df.loc[i,'ist']
+            delta=df.loc[i+1,'datetime']-df.loc[i,'datetime']
+            delta=delta.seconds/60
+            d1=diff/delta
+            d2=diff/(delta*delta)
+            d3=diff/(delta*delta*delta)
+            der.loc[i] = [d1,d2,d3]
         df = pd.concat([df, der], axis=1)
     return df
 
-def plot_graph(df, begin=0, end=0, title='24h'):
+def plot_graph(df, begin=0, end=0, title=''):
     if end==0:
         end=len(df)
     datetime = df['datetime'][begin:end]
@@ -214,7 +234,7 @@ def plot_graph(df, begin=0, end=0, title='24h'):
     plt.subplot(3, 1, 1)
     plt.title('Interstitial glucose')
     plt.plot(datetime, df[utils.ist_l][begin:end], label=utils.ist_l)
-    # plt.scatter(datetime, df[utils.cho_l][begin:end], label=utils.cho_l, c='g', s=10)
+    plt.plot(datetime, df['ist'][begin:end], label='IST smoothed')
     #plt.xticks(rotation=50)
     plt.legend()
 
@@ -241,8 +261,8 @@ def plot_derivations(df, begin=0, end=0, title=''):
 
     # Derivations
     fig = plt.figure(figsize=(12, 8))
-    fig.canvas.set_window_title('Derivations')
-    fig.suptitle('Derivations')
+    fig.canvas.set_window_title(f'Derivations {title}')
+    fig.suptitle(f'Derivations {title}')
     plt.subplot(4, 1, 1)
     plt.plot(datetime, df[utils.ist_l][begin:end], label='ist')
     plt.legend()
@@ -257,7 +277,7 @@ def plot_derivations(df, begin=0, end=0, title=''):
     plt.plot(datetime, df['d3'][begin:end], label='d3 [mmol/l/t^4]')
     plt.legend()
 
-def load_data(patientID, from_file=False, fill_missing='', norm=False, derivation='', 
+def load_data(patientID, from_file=False, fill_missing='', smooth='', derivation='', norm=False,
               verbose=True, graphs=False, analyze=False):
     if from_file:
         utils.print_h('Loading data from file.')
@@ -278,10 +298,14 @@ def load_data(patientID, from_file=False, fill_missing='', norm=False, derivatio
         df = get_cho(df)
         df = process_time(df)
 
+        if smooth == 'savgol':
+            df['ist'] = savgol_filter(df['Interstitial glucose'], 51, 3) # window size 51, polynomial order 3
+        else:
+            df['ist'] = df['Interstitial glucose']
         if derivation != '':
             df = calc_derivations(df, derivation)
-        if(norm):
-            df = normalize(df)
+        if norm != '':
+            df = normalize(df, norm)
 
         df.to_csv(f'data/{patientID}-modified.csv', index=False, sep=';')
 

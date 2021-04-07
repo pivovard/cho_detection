@@ -49,7 +49,6 @@ def plot_eval(self, y_label, y_pred, TP, FN, FP, begin=0, end=0, title=''):
 
 ChoDetector.plot_eval = plot_eval
 
-
 def evaluate(self, y_label, y_pred, treshold=0, method=''):
     n = len(y_label)
     TP = np.zeros(n)
@@ -74,7 +73,7 @@ def evaluate(self, y_label, y_pred, treshold=0, method=''):
                 y_elements = y_label[i-w:i]
             else:
                 y_elements = y_label[:i]
-            if not np.any(y_elements > 0) and np.all(FP[i-12:i]==False):
+            if not np.any(y_elements > 0) and np.all(FP[i-w:i]==False):
                 FP[i] = True
     
     print(method)
@@ -106,58 +105,10 @@ def create_window2(df, y_label, width, shift):
         X[i] = df[i:i+width]
     return X, y
 
-def window_stack(a, stepsize=1, width=12):
-    n = a.shape[0]
-    return np.hstack( a[i:1+n+i-width:stepsize] for i in range(0,width) )
-
-def dense(self):
-    headers = [utils.ist_l, 'hour', 'weekday', 'd1', 'd2', 'd3']
-    X, y = create_window2(self.df_train[headers], self.df_train['cho2'], utils.WINDOW_WIDTH_1H*2, 6)
-
-    model = tf.keras.Sequential([
-        # Shape: (time, features) => (time*features)
-        tf.keras.layers.Flatten(),
-        tf.keras.layers.Dense(units=64, activation='relu'),
-        tf.keras.layers.Dense(units=128, activation='relu'),
-        tf.keras.layers.Dense(units=1)
-    ])
-
-    model.compile(loss=tf.losses.MeanSquaredError(), optimizer=tf.optimizers.Adam(), metrics=[tf.metrics.MeanAbsoluteError()])
-    model.fit(X, y, epochs=100, batch_size= 32,  shuffle=False)
-
-    X, y = create_window(self.df_test[headers], self.df_test['Carbohydrate intake'], utils.WINDOW_WIDTH_1H*2)
-    y_pred = model(X)
-
-    self.evaluate(y, y_pred, 15, 'Dense', graph=True)
-
-ChoDetector.dense = dense
-
-def conv(self):
-    headers = [utils.ist_l, 'quarter', 'weekday', 'd1', 'd2', 'd3']
-    X, y = create_window2(self.df_train[headers], self.df_train['cho2'], utils.WINDOW_WIDTH_1H*2, 6)
-
-    model = tf.keras.models.Sequential([
-		tf.keras.layers.Conv1D(filters=3,
-                           kernel_size=(utils.WINDOW_WIDTH_1H*2,),
-                           activation='relu'),
-        tf.keras.layers.Dense(units=32, activation='relu'),
-        tf.keras.layers.Dense(units=1)
-	])
-
-    model.compile(loss=tf.losses.MeanSquaredError(), optimizer=tf.optimizers.Adam(), metrics=[tf.metrics.MeanAbsoluteError()])
-    model.fit(X, y, epochs=100, batch_size= 32,  shuffle=False)
-
-    X, y = create_window(self.df_test[headers], self.df_test['Carbohydrate intake'], utils.WINDOW_WIDTH_1H*2)
-    y_pred = model(X)
-
-    self.evaluate(y, y_pred, 15, 'CONV1', graph=True)
-
-ChoDetector.conv = conv
-
 def lstm(self):
-    headers = [utils.ist_l, 'd1', 'd2', 'd3']
+    headers = ['ist', 'd1']
 
-    X, y = create_window2(self.df_train[headers], self.df_train['cho2'], utils.WINDOW_WIDTH_1H*2, 12)
+    X, y = create_window2(self.df_train[headers], self.df_train['cho2'], utils.WINDOW_WIDTH_1H*2, 6)
 
     model = tf.keras.Sequential()
     model.add(
@@ -166,7 +117,7 @@ def lstm(self):
               input_shape=[X.shape[1], X.shape[2]]
           )
     )
-    model.add(tf.keras.layers.Dropout(rate=0.5))
+    #model.add(tf.keras.layers.Dropout(rate=0.5))
     model.add(tf.keras.layers.Dense(units=128, activation='relu'))
     model.add(tf.keras.layers.Dense(1))
 
@@ -182,7 +133,7 @@ def lstm(self):
 	# ])
 
     model.compile(loss=tf.losses.MeanSquaredError(), optimizer=tf.optimizers.Adam(), metrics=[tf.metrics.MeanAbsoluteError()])
-    model.fit(X, y, epochs=50, batch_size= 32,  shuffle=False)
+    model.fit(X, y, epochs=50, batch_size= 96,  shuffle=False)
 
     X, y = create_window(self.df_test[headers], self.df_test['Carbohydrate intake'], utils.WINDOW_WIDTH_1H*2)
     y_pred = model(X)
@@ -190,7 +141,11 @@ def lstm(self):
 
     self.evaluate(y, y_pred, 0.15, 'LSTM')
 
-ChoDetector.conv = conv
+ChoDetector.lstm = lstm
+
+def window_stack(a, stepsize=1, width=12):
+    n = a.shape[0]
+    return np.hstack( a[i:1+n+i-width:stepsize] for i in range(0,width) )
 
 def replace_nan(df):
     df_clean = df.fillna(0)
@@ -203,20 +158,20 @@ def lda(self):
     df_train = replace_nan(self.df_train)
     df_test = replace_nan(self.df_test)
 
-    X = window_stack(df_train[[utils.ist_l]])
-    y = df_train['cho2_b'][11:]
+    X = window_stack(df_train[['d1']], width=24)
+    y = df_train['cho2_b'][23:]
     lda.fit(X, y)
     qda.fit(X, y)
 
-    X = window_stack(df_test[[utils.ist_l]])
-    y = df_test['cho_b'][11:]
+    X = window_stack(df_test[['d1']], width=24)
+    y = df_test['cho_b'][23:]
     y_pred=lda.predict(X)
     self.evaluate(y, y_pred, 0, 'LDA window')
     y_pred=qda.predict(X)
     self.evaluate(y, y_pred, 0, 'QDA window')
 
 
-    headers = [utils.ist_l, 'hour', 'quarter', 'weekday', 'd1', 'd2', 'd3', 'Steps']
+    headers = ['ist', 'hour', 'quarter', 'weekday', 'd1', 'd2', 'd3', 'Steps']
     lda.fit(df_train[headers], df_train['cho2_b'])
     qda.fit(df_train[headers], df_train['cho2_b'])
     
@@ -226,7 +181,7 @@ def lda(self):
     self.evaluate(df_test['cho_b'], y_pred, 0, 'QDA multiple values')
 
 
-    headers = [utils.ist_l, 'quarter', 'weekday', 'd1', 'd2', 'd3']
+    headers = ['ist', 'quarter', 'weekday', 'd1', 'd2', 'd3']
     df_train['product'] = np.ones(len(df_train))
     df_test['product'] = np.ones(len(df_test))
     for i, col in enumerate(headers):
@@ -246,3 +201,113 @@ def lda(self):
     self.evaluate(y, y_pred, 0, 'QDA window multiple values')
 
 ChoDetector.lda = lda
+
+def treshold_akima(self):
+    d1_max = self.df_train['d1'].max()
+    d2_max = self.df_train['d2'].max()
+    d1t = [0.2*d1_max, 0.3*d1_max, 0.4*d1_max, 0.5*d1_max, 0.6*d1_max, 0.7*d1_max]
+    d2t = [0.2*d2_max, 0.4*d2_max, 0.6*d2_max, 0.8*d2_max, 0.8*d2_max]
+
+    datetime = self.df_test['datetime']
+
+    fig = plt.figure(figsize=(12, 8))
+    fig.canvas.set_window_title("d1")
+    fig.suptitle("d1")
+
+    plt.subplot(len(d1t)+2, 1, 1)
+    plt.plot(datetime, self.df_test['d1'], label='d1')
+    plt.legend()
+
+    flags = np.zeros((len(d1t),len(self.df_test)))
+    for i, val in enumerate(d1t):
+        flags[i] = self.df_test['d1'] > val
+        plt.subplot(len(d1t)+2, 1, i+2)
+        plt.scatter(datetime, flags[i] + 0.5, label=f'{i}', s=5)
+        plt.scatter(datetime, self.df_test['cho_b'], label='cho', s=5)
+        plt.legend()
+
+    #evaluate
+    prc = np.sum(flags, axis=0)/len(d1t)
+    plt.subplot(len(d1t)+2, 1, len(d1t)+2)
+    plt.plot(datetime, prc, label='%')
+    plt.scatter(datetime, self.df_test['cho_b'], label='cho', s=3)
+
+    self.evaluate(self.df_test['cho_b'], prc, treshold=0.2, method='treshold')
+
+ChoDetector.treshold_akima = treshold_akima
+
+def treshold_manual(self, df=None):
+    d1t = [0, 0.5, 1.25, 1.8]
+    d1t = [0, 0.005, 0.0125, 0.018]
+    d2t = [0, 0.005, 0.0125, 0.018]
+    weight = [1,1.5,2.25,3]
+
+    if df is None:
+        df = self.df_test.reset_index(drop=True)
+    else:
+        df = df.reset_index(drop=True)
+    
+    datetime = df['datetime']
+
+    flags1 = np.zeros((len(d1t),len(df)))
+    flags2 = np.zeros((len(d1t),len(df)))
+    for i, val in enumerate(d1t):
+        flags1[i] = (df['d1'] >= d1t[i]) * weight[i]
+        flags2[i] = (df['d2'] >= d2t[i]) * weight[i]
+
+    flags1 = np.max(flags1, axis=0)
+    flags2 = np.max(flags2, axis=0)
+    
+    cross = np.zeros(len(df))
+    for i in range(1, len(df)):
+        if ((df.loc[i-1,'d1'] > df.loc[i,'d1'] and df.loc[i-1,'d2'] < df.loc[i,'d2']) or
+            (df.loc[i-1,'d1'] < df.loc[i,'d1'] and df.loc[i-1,'d2'] > df.loc[i,'d2'])):
+            cross[i] = 3
+    
+    for i in range(12, len(df)):
+        for j in range(1, 13):
+            if flags1[i] >= 2 and flags1[i-j] >= 2+0.2*j:
+                flags1[i] = flags1[i] + 0.1*j
+
+        # if flags1[i] >= 2 and flags1[i-2] >= 3:
+        #     flags1[i] = flags1[i]+1
+    #     if flags1[i] == 1.5 and s <= 12:
+    #         flags1[i] = 3.5
+    #     if flags1[i] == 2.25 and s <= 12:
+    #         flags1[i] = 4
+    #     if s >= 1 and s <= 5 and np.max(flags1[i-3:i]) == 1:
+    #         flags1[i] = 4
+
+
+    detected=np.zeros(len(df))
+    for i, val in enumerate(flags1):
+        if val >= 2:
+            detected[i] = val
+        else:
+            detected[i]=None
+
+    fig = plt.figure(figsize=(12, 8))
+    fig.canvas.set_window_title("d1")
+    fig.suptitle("Pacient 575")
+
+    plt.subplot(3, 1, 1)
+    plt.plot(datetime, df['Interstitial glucose'], label='ist')
+    plt.plot(datetime, df['Heartbeat']*0.2, label='heartbeat *0.2')
+    plt.scatter(datetime, df['cho']*0.2, label='cho *0.2', s=10, c='g')
+    plt.scatter(datetime, df[utils.phy_l], label='activity', s=10, c='b', marker='^')
+    plt.scatter(datetime, detected, label='detected cho', s=10, c='r', marker='*')
+    plt.legend()
+    plt.subplot(3, 1, 2)
+    plt.plot(datetime, np.full(len(df), 0.018), label='treshold 0.018')
+    plt.plot(datetime, np.full(len(df), 0.0125), label='treshold 0.0125')
+    plt.plot(datetime, df['d1'], label='d1')
+    # plt.plot(datetime, df['d2'], label='d2')
+    plt.legend()
+
+    plt.subplot(3, 1, 3)
+    plt.plot(datetime, flags1, label='activation')
+    # plt.plot(datetime, df['Heartbeat'], label='heartbeat')
+    
+    plt.legend()
+
+ChoDetector.treshold_manual = treshold_manual

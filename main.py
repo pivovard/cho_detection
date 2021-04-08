@@ -9,23 +9,22 @@ import utils
 
 # wrong 540
 # good  570 575
-ID = 575
+ID = 540
 IDs=[540,544,552,559,563,567,570,575,584,588,591,596]
-IDs=[559,563,567,588]
 
 # Parse log file to csv file
 # load_log.load_log(patientID=ID)
-load_log.load_log_all(IDs)
+# load_log.load_log_all(IDs)
 
 # Load data from csv file
 # df = load_data.load_data(patientID=ID, fill_missing='', smooth='savgol', derivation='manual', norm='',
 #     verbose=True, graphs=True, analyze=False)
-# Load multiple csv files
-df = load_data.load_data_all(patientIDs=IDs, from_file=False,
-                             fill_missing='', smooth='savgol', derivation='manual', norm='')
 # Load modified data from file
 # df = load_data.load_data(patientID=ID, from_file=True,
 #                          verbose=True, graphs=False, analyze=False)
+# Load multiple csv files
+df = load_data.load_data_all(patientIDs=IDs, from_file=True,
+                             fill_missing='', smooth='savgol', derivation='manual', norm='')
 
 # plt.show()
 
@@ -41,9 +40,10 @@ df = load_data.load_data_all(patientIDs=IDs, from_file=False,
 
 cho = ChoDetector(df, True)
 # cho.lda()
-# cho.lstm()
-# NECHAT JAKO UKAZKOVY!!!
-# cho.treshold_manual(df[30*utils.WINDOW_WIDTH_24H:32*utils.WINDOW_WIDTH_24H])
-cho.treshold_manual(df[20*utils.WINDOW_WIDTH_24H:21*utils.WINDOW_WIDTH_24H])
+cho.lstm()
+# 575 NECHAT JAKO UKAZKOVY!!!
+# act = cho.treshold_manual(df[30*utils.WINDOW_WIDTH_24H:32*utils.WINDOW_WIDTH_24H])
+# act = cho.treshold_manual(df)
+# cho.evaluate(df['cho_b'], act, treshold=3)
 
 plt.show()

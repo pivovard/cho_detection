@@ -151,6 +151,8 @@ def get_cho(df):
     for index, row in it:
         if row[utils.cho_l] > 0:
             for i in range(24): #2h
+                if (index+i)>=len(df):
+                    break
                 df.loc[index+i, 'cho2'] = df.loc[index+i, 'cho2'] + row[utils.cho_l]
     #boolean values
     df['cho_b'] = df[utils.cho_l] > 0
@@ -280,12 +282,12 @@ def plot_derivations(df, begin=0, end=0, title=''):
 def load_data(patientID, from_file=False, fill_missing='', smooth='', derivation='', norm='',
               verbose=True, graphs=False, analyze=False):
     if from_file:
-        utils.print_h('Loading data from file.')
+        utils.print_h(f'Loading data from file {patientID}')
         df = pd.read_csv(f'data/{patientID}-modified.csv', sep=';')
         #set datetime type
         df = to_datetime(df, 'datetime')
     else:
-        utils.print_h('Loading and modifying data from csv.')
+        utils.print_h(f'Loading and modifying data from csv {patientID}')
         df = pd.read_csv(f'data/{patientID}-transposed.csv', sep=';')
 
         if verbose:
@@ -334,8 +336,9 @@ def load_data_all(patientIDs, from_file, fill_missing='', smooth='', derivation=
     for i, id in enumerate(patientIDs):
         d=load_data(patientID=id, from_file=from_file,
                     fill_missing=fill_missing, smooth=smooth, derivation=derivation, norm=norm)
-        dfs.append(d)
-    dfs.reset_index(drop=True)
+        dfs=dfs.append(d)
+    dfs=dfs.reset_index(drop=True)
+    print(tabulate(dfs.head(20), headers = 'keys', tablefmt = 'psql'))
 
     utils.print_h('END')
 

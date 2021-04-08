@@ -13,10 +13,12 @@ from datetime import timedelta
 import utils
 
 class ChoDetector():
-    def __init__(self, df, graph):
+    def __init__(self, df, graph, patientID=''):
+        self.df=df
         self.df_train = df[:int(len(df)*0.8)]
         self.df_test = df[int(len(df)*0.8):]
         self.graph = graph
+        self.patientID = patientID
 
 def plot_eval(self, y_label, y_pred, TP, FN, FP, begin=0, end=0, title=''):
     if end==0:
@@ -26,7 +28,7 @@ def plot_eval(self, y_label, y_pred, TP, FN, FP, begin=0, end=0, title=''):
     fig.canvas.set_window_title(title)
     fig.suptitle(title)
 
-    datetime = self.df_test['datetime'][begin:end]
+    datetime = self.df['datetime'][begin:end]
 
     plt.subplot(4, 1, 1)
     plt.title('Predicted CHO')
@@ -55,24 +57,21 @@ def evaluate(self, y_label, y_pred, treshold=0, method=''):
     FN = np.zeros(n)
     FP = np.zeros(n)
     delay = 0
-    w = 24 #2h
+    w = 48 #2h
     y_elements = []
 
     for i, y in enumerate(y_label):
         if y > 0:
-            if n - i >= w:
-                y_elements = y_pred[i-2:i+w]
-            else:
-                y_elements = y_pred[i-2:]
-            if np.any(y_elements > treshold):
+            y_elements = y_pred[i-3:i+w]
+            if np.any(y_elements >= treshold):
                 TP[i] = True
             else:
                 FN[i] = True
-        elif y_pred[i] > treshold:
+        elif y_pred[i] >= treshold:
             if i >= w:
-                y_elements = y_label[i-w:i]
+                y_elements = y_label[i-w:i+w]
             else:
-                y_elements = y_label[:i]
+                y_elements = y_label[:i+w]
             if not np.any(y_elements > 0) and np.all(FP[i-w:i]==False):
                 FP[i] = True
     
@@ -106,9 +105,11 @@ def create_window2(df, y_label, width, shift):
     return X, y
 
 def lstm(self):
-    headers = ['ist', 'd1']
+    headers = ['Interstitial glucose', 'd1']
 
-    X, y = create_window2(self.df_train[headers], self.df_train['cho2'], utils.WINDOW_WIDTH_1H*2, 6)
+    X, y = create_window(self.df_train[headers], self.df_train['cho_b'], utils.WINDOW_WIDTH_1H*2)
+    # X = self.df_train[headers]
+    # y = self.df_train['cho']
 
     model = tf.keras.Sequential()
     model.add(
@@ -249,14 +250,13 @@ def treshold_manual(self, df=None):
     
     datetime = df['datetime']
 
-    flags1 = np.zeros((len(d1t),len(df)))
-    flags2 = np.zeros((len(d1t),len(df)))
+    flagsD1 = np.zeros((len(d1t),len(df)))
+    flagsD2 = np.zeros((len(d1t),len(df)))
     for i, val in enumerate(d1t):
-        flags1[i] = (df['d1'] >= d1t[i]) * weight[i]
-        flags2[i] = (df['d2'] >= d2t[i]) * weight[i]
+        flagsD1[i] = (df['d1'] >= d1t[i]) * weight[i]
+        flagsD2[i] = (df['d2'] >= d2t[i]) * weight[i]
 
-    flags1 = np.max(flags1, axis=0)
-    flags2 = np.max(flags2, axis=0)
+    activation = np.max(flagsD1, axis=0)
     
     cross = np.zeros(len(df))
     for i in range(1, len(df)):
@@ -266,33 +266,22 @@ def treshold_manual(self, df=None):
     
     for i in range(12, len(df)):
         for j in range(1, 13):
-            if flags1[i] >= 2 and flags1[i-j] >= 2+0.2*j:
-                flags1[i] = flags1[i] + 0.1*j
-
-        # if flags1[i] >= 2 and flags1[i-2] >= 3:
-        #     flags1[i] = flags1[i]+1
-    #     if flags1[i] == 1.5 and s <= 12:
-    #         flags1[i] = 3.5
-    #     if flags1[i] == 2.25 and s <= 12:
-    #         flags1[i] = 4
-    #     if s >= 1 and s <= 5 and np.max(flags1[i-3:i]) == 1:
-    #         flags1[i] = 4
-
+            if activation[i] >= 2 and activation[i-j] >= 2+0.2*j:
+                activation[i] = activation[i] + 0.1*j
 
     detected=np.zeros(len(df))
-    for i, val in enumerate(flags1):
+    for i, val in enumerate(activation):
         if val >= 2:
             detected[i] = val
         else:
             detected[i]=None
 
     fig = plt.figure(figsize=(12, 8))
-    fig.canvas.set_window_title("d1")
-    fig.suptitle("Pacient 575")
+    fig.canvas.set_window_title("Treshold")
+    fig.suptitle(f"Pacient {self.patientID}")
 
     plt.subplot(3, 1, 1)
     plt.plot(datetime, df['Interstitial glucose'], label='ist')
-    plt.plot(datetime, df['Heartbeat']*0.2, label='heartbeat *0.2')
     plt.scatter(datetime, df['cho']*0.2, label='cho *0.2', s=10, c='g')
     plt.scatter(datetime, df[utils.phy_l], label='activity', s=10, c='b', marker='^')
     plt.scatter(datetime, detected, label='detected cho', s=10, c='r', marker='*')
@@ -303,11 +292,10 @@ def treshold_manual(self, df=None):
     plt.plot(datetime, df['d1'], label='d1')
     # plt.plot(datetime, df['d2'], label='d2')
     plt.legend()
-
     plt.subplot(3, 1, 3)
-    plt.plot(datetime, flags1, label='activation')
-    # plt.plot(datetime, df['Heartbeat'], label='heartbeat')
-    
+    plt.plot(datetime, activation, label='activation')
     plt.legend()
+
+    return activation
 
 ChoDetector.treshold_manual = treshold_manual

@@ -343,3 +343,38 @@ def load_data_all(patientIDs, from_file, fill_missing='', smooth='', derivation=
     utils.print_h('END')
 
     return dfs
+
+def load_custom(patientID, column='', savgol=True):
+    df = pd.read_csv(f'data/{patientID}-transposed.csv', sep=';')
+    df = to_datetime(df, 'Device Time')
+
+    df = df[df[column].notna() | df['Physical activity']].reset_index(drop=True)
+    df[column] = savgol_filter(df[column], 11, 3) # window size 51, polynomial order 3
+
+    der = pd.DataFrame(columns=['d1'], dtype=float)
+    for i in range(len(df)-1):
+        utils.printProgressBar(i, len(df)-1)
+        if (df.loc[i+1,'datetime']-df.loc[i,'datetime']) > timedelta(minutes=5) or df.loc[i,column] == 0 or df.loc[i+1,column] == 0:
+            der.loc[i] = [0]
+            continue
+        diff=df.loc[i+1,column]-df.loc[i,column]
+        delta=df.loc[i+1,'datetime']-df.loc[i,'datetime']
+        delta=delta.seconds/60
+        d1=diff/delta
+        der.loc[i] = [d1]
+    df = pd.concat([df[1:], der], axis=1)
+
+    df=df[24*utils.WINDOW_WIDTH_24H:26*utils.WINDOW_WIDTH_24H]
+    datetime = df['datetime']
+
+    fig = plt.figure(figsize=(12, 8))
+    plt.subplot(2, 1, 1)
+    plt.plot(datetime, df[column], label=column)
+    plt.scatter(datetime, df[utils.phy_l], label='activity', s=10, c='y', marker='^')
+    plt.legend()
+    plt.subplot(2, 1, 2)
+    plt.plot(datetime, df['d1'], label='der')
+    plt.scatter(datetime, df[utils.phy_l]*0.2, label='activity', s=10, c='y', marker='^')
+    plt.legend()
+
+    return df

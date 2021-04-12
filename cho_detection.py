@@ -237,7 +237,7 @@ def treshold_akima(self):
 
 ChoDetector.treshold_akima = treshold_akima
 
-def treshold_manual(self, df=None):
+def treshold_manual_backup(self, df=None):
     d1t = [0, 0.5, 1.25, 1.8]
     d1t = [0, 0.005, 0.0125, 0.018]
     d2t = [0, 0.005, 0.0125, 0.018]
@@ -285,6 +285,83 @@ def treshold_manual(self, df=None):
     plt.scatter(datetime, df['cho']*0.2, label='cho *0.2', s=10, c='g')
     plt.scatter(datetime, df[utils.phy_l], label='activity', s=10, c='b', marker='^')
     plt.scatter(datetime, detected, label='detected cho', s=10, c='r', marker='*')
+    plt.legend()
+    plt.subplot(3, 1, 2)
+    plt.plot(datetime, np.full(len(df), 0.018), label='treshold 0.018')
+    plt.plot(datetime, np.full(len(df), 0.0125), label='treshold 0.0125')
+    plt.plot(datetime, df['d1'], label='d1')
+    # plt.plot(datetime, df['d2'], label='d2')
+    plt.legend()
+    plt.subplot(3, 1, 3)
+    plt.plot(datetime, activation, label='activation')
+    plt.legend()
+
+    return activation
+
+def treshold_manual(self, df=None):
+    N=len(df)
+    d1t = [0, 0.5, 1.25, 1.8]
+    d1t = [0, 0.005, 0.0125, 0.018]
+    d2t = [0, 0.005, 0.0125, 0.018]
+    m1t = [0, -0.005, -0.0125, -0.018]
+    weight = [1,1.5,2.25,3]
+
+    if df is None:
+        df = self.df_test.reset_index(drop=True)
+    else:
+        df = df.reset_index(drop=True)
+    
+    datetime = df['datetime']
+
+    flagsD1 = np.zeros((len(d1t),N))
+    flagsD2 = np.zeros((len(d1t),N))
+    flagsM1 = np.zeros((len(d1t),N))
+    for i, val in enumerate(d1t):
+        flagsD1[i] = (df['d1'] >= d1t[i]) * weight[i]
+        flagsD2[i] = (df['d2'] >= d2t[i]) * weight[i]
+        flagsM1[i] = (df['d1'] <= d1t[i]*-1) * weight[i] * -1
+
+    activation = np.max(flagsD1, axis=0)
+    activation2 = np.max(flagsD1, axis=0)
+    activation_m = np.min(flagsM1, axis=0)
+    
+    for i in range(24, N-1):
+        if activation[i] > 2:
+            for j in range(1, 25):
+                if activation[i-j] >= 2+0.2*j:
+                    activation[i] = activation[i] + 0.1*j
+                    activation2[i] = activation2[i] + 0.1*j
+        
+        elif activation_m[i] < -2:
+            activation2[i] = np.max(activation2[i-6:i])
+            for j in range(1, 25):
+                if activation_m[i-j] <= -1*(2+0.2*j):
+                    activation_m[i] = activation_m[i] - 0.1*j
+                    activation2[i] = activation2[i] - 0.1*j
+
+
+    detected=np.full(N, None)
+    detected2=np.full(N, None)
+    detected_m=np.full(N, None)
+    for i in range(12, len(df)):
+        if activation[i] >= 2:
+            detected[i] = activation[i]
+        if activation2[i] >= 2:
+            detected2[i] = activation2[i]
+        if activation_m[i] <= -3:
+            detected_m[i] = activation_m[i]
+
+    fig = plt.figure(figsize=(12, 8))
+    fig.canvas.set_window_title("Treshold")
+    fig.suptitle(f"Pacient {self.patientID}")
+
+    plt.subplot(3, 1, 1)
+    plt.plot(datetime, df['Interstitial glucose'], label='ist')
+    plt.scatter(datetime, df['cho']*0.2, label='cho *0.2', s=10, c='g')
+    plt.scatter(datetime, df[utils.phy_l], label='activity', s=10, c='y', marker='^')
+    plt.scatter(datetime, detected2, label='detected cho with decrease', s=10, c='b', marker='*')
+    plt.scatter(datetime, detected, label='detected cho', s=10, c='r', marker='*')
+    # plt.scatter(datetime, detected_m, label='decrease', s=10, c='b', marker='*')
     plt.legend()
     plt.subplot(3, 1, 2)
     plt.plot(datetime, np.full(len(df), 0.018), label='treshold 0.018')

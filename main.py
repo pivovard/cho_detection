@@ -17,14 +17,14 @@ IDs=[540,544,552,559,563,567,570,575,584,588,591,596]
 # load_log.load_log_all(IDs)
 
 # Load data from csv file
-# df = load_data.load_data(ID, fill_missing='', smooth='savgol', derivation='manual', norm='',
-#     verbose=True, graphs=True, analyze=False)
+df = load_data.load_data(ID, fill_missing='', smooth='savgol', derivation='manual', norm='',
+    verbose=True, graphs=True, analyze=False)
 # Load modified data from file
 df = load_data.load_data(ID, from_file=True, verbose=True, graphs=False, analyze=False)
 # Load multiple csv files
 # df = load_data.load_data_all(IDs, from_file=True, fill_missing='', smooth='savgol', derivation='manual', norm='')
 
-# plt.show()
+plt.show()
 
 # nn.single_step(df)
 # nn.multi_step(df)W
@@ -38,9 +38,9 @@ df = load_data.load_data(ID, from_file=True, verbose=True, graphs=False, analyze
 
 cho = ChoDetector(df, True)
 # cho.lda()
-# cho.lstm()
+cho.lstm()
 # 575 NECHAT JAKO UKAZKOVY!!!
-act = cho.treshold_manual(df[30*utils.WINDOW_WIDTH_24H:32*utils.WINDOW_WIDTH_24H])
+# act = cho.treshold_manual(df[30*utils.WINDOW_WIDTH_24H:32*utils.WINDOW_WIDTH_24H])
 # act = cho.treshold_manual(df)
 # cho.evaluate(df['cho_b'], act, treshold=3)
 

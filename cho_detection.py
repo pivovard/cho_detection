@@ -104,43 +104,42 @@ def create_window2(df, y_label, width, shift):
         X[i] = df[i:i+width]
     return X, y
 
-def lstm(self):
+def lstm(self, df=None):
+    if df is None:
+        df = self.df_test.reset_index(drop=True)
+    else:
+        df = df.reset_index(drop=True)
+        
     headers = ['Interstitial glucose', 'd1']
+    # headers = ['Interstitial glucose', 'd1', 'd2', 'd3', 'hour', 'quarter']
 
-    X, y = create_window(self.df_train[headers], self.df_train['cho_b'], utils.WINDOW_WIDTH_1H*2)
+    X, y = create_window(self.df_train[headers], self.df_train['cho2'], utils.WINDOW_WIDTH_1H*2)
     # X = self.df_train[headers]
     # y = self.df_train['cho']
 
     model = tf.keras.Sequential()
     model.add(
-          tf.keras.layers.LSTM(
-              units=128,
-              input_shape=[X.shape[1], X.shape[2]]
-          )
+        tf.keras.layers.Bidirectional(
+            tf.keras.layers.LSTM(
+                units=128,
+                input_shape=[X.shape[1], X.shape[2]]
+            )
+        )
     )
-    #model.add(tf.keras.layers.Dropout(rate=0.5))
+    model.add(tf.keras.layers.Dropout(rate=0.5))
     model.add(tf.keras.layers.Dense(units=128, activation='relu'))
     model.add(tf.keras.layers.Dense(1))
 
-    # model = tf.keras.models.Sequential([
-	# 	# Shape [batch, time, features] => [batch, time, lstm_units]
-	# 	tf.keras.layers.LSTM(32, return_sequences=True),
-    #     tf.keras.layers.Conv1D(filters=3,
-    #                        kernel_size=(utils.WINDOW_WIDTH_1H*2,),
-    #                        activation='relu'),
-    #     tf.keras.layers.Dense(units=128, activation='relu'),
-	# 	# Shape => [batch, time, features]
-	# 	tf.keras.layers.Dense(units=1)
-	# ])
-
     model.compile(loss=tf.losses.MeanSquaredError(), optimizer=tf.optimizers.Adam(), metrics=[tf.metrics.MeanAbsoluteError()])
-    model.fit(X, y, epochs=50, batch_size= 96,  shuffle=False)
+    model.fit(X, y, epochs=200, batch_size= 30,  shuffle=False)
+
+    model.save('keras_model.h5')
 
     X, y = create_window(self.df_test[headers], self.df_test['Carbohydrate intake'], utils.WINDOW_WIDTH_1H*2)
     y_pred = model(X)
     # y_pred=y_pred[:,-1,0]
 
-    self.evaluate(y, y_pred, 0.15, 'LSTM')
+    self.evaluate(y, y_pred, 10, 'LSTM')
 
 ChoDetector.lstm = lstm
 

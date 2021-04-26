@@ -51,7 +51,9 @@ def get_ist(df, fill_missing):
     df_ist = df[df['Interstitial glucose'].notna()].reset_index(drop=True)
 
     # add missing columns
-    for i, column in enumerate(['Carbohydrate intake', 'Physical activity', 'requested insulin bolus', 'requested insulin basal rate', 'Steps']):
+    headers = ['Carbohydrate intake', 'Physical activity', 'requested insulin bolus', 'requested insulin basal rate',
+               'Steps', 'Heartbeat', 'Electrodermal activity', 'Skin temperature', 'Air temperature']
+    for i, column in enumerate(headers):
         if not column in df:
             df[column] = np.full(len(df), None)
             
@@ -60,7 +62,11 @@ def get_ist(df, fill_missing):
             | df['Physical activity'].notna()
             | df['requested insulin bolus'].notna()
             | df['requested insulin basal rate'].notna()
-            | df['Steps'].notna()]
+            | df['Steps'].notna()
+            | df['Heartbeat'].notna()
+            | df['Electrodermal activity'].notna()
+            | df['Skin temperature'].notna()
+            | df['Air temperature'].notna()]
     
     if fill_missing != '':
         print(f'Filling missing values: {type}')
@@ -102,7 +108,7 @@ def get_ist(df, fill_missing):
     #shift carb values matching nan ist
     #add processing for multiple columns as for cho
     delta = timedelta(minutes=20)
-    for i, column in enumerate(['Carbohydrate intake', 'Physical activity', 'requested insulin bolus', 'requested insulin basal rate', 'Steps']):
+    for i, column in enumerate(headers):
         print(f'\nShifting {column}')
         for index, row in df.iterrows():
             if not pd.isnull(row[column]) and pd.isnull(row['Interstitial glucose']):
@@ -157,6 +163,18 @@ def get_cho(df):
     #boolean values
     df['cho_b'] = df[utils.cho_l] > 0
     df['cho2_b'] = df['cho2'] > 0
+    return df
+
+def get_pa(df):
+    print('\nProcessing PA...')
+    df['pa'] = np.zeros(len(df))
+    it = df.iterrows()
+    for index, row in it:
+        if row[utils.phy_l] > 0:
+            for i in range(12): #2h
+                if (index+i)>=len(df) or df.loc[index+i, utils.cho_l] == 0:
+                    break
+                df.loc[index+i, 'pa'] = row[utils.cho_l]
     return df
 
 #NaN -> 0, - -> 0
@@ -228,7 +246,7 @@ def plot_graph(df, begin=0, end=0, title=''):
         end=len(df)
     datetime = df['datetime'][begin:end]
 
-    fig = plt.figure(figsize=(12, 8))
+    fig = plt.figure(figsize=(12, 9))
     fig.canvas.set_window_title(title)
     fig.suptitle(title)
     #fig.autofmt_xdate()
@@ -237,24 +255,41 @@ def plot_graph(df, begin=0, end=0, title=''):
     plt.title('Interstitial glucose')
     plt.plot(datetime, df[utils.ist_l][begin:end], label=utils.ist_l)
     plt.plot(datetime, df['ist'][begin:end], label='IST smoothed')
+    plt.scatter(datetime, 0.2*df[utils.cho_l][begin:end], label=f'{utils.cho_l} [g]', c='g', s=10)
+    plt.scatter(datetime, df['pa'][begin:end], label=utils.ist_l)
+    #plt.xticks(rotation=50)
+    plt.legend()
+    plt.ylabel('[mmol/l]')
+    
+    plt.subplot(3, 1, 2)
+    plt.title('Carbohydrate intake, PA, Insulin bazal and bolus')
+    plt.plot(datetime, np.zeros(len(datetime)), c='w') # dummy
+    plt.scatter(datetime, df[utils.cho_l][begin:end], label=f'{utils.cho_l} [g]', c='g', s=10)
+    plt.scatter(datetime, df[utils.phy_l][begin:end], label=utils.phy_l, c='r', s=10)
+    plt.scatter(datetime, df[utils.inb_l][begin:end], label=f'{utils.inb_l} [UI]', c='k', s=10)
+    plt.scatter(datetime, df[utils.inr_l][begin:end], label=f'{utils.inr_l} [UI/H]', c='c', s=10)
     #plt.xticks(rotation=50)
     plt.legend()
 
-    plt.subplot(3, 1, 2)
-    plt.title('Carbohydrate intake, PA, Insulin')
-    plt.scatter(datetime, df[utils.cho_l][begin:end], label=utils.cho_l, c='g', s=10)
-    plt.scatter(datetime, df[utils.phy_l][begin:end], label=utils.phy_l, c='r', s=10)
-    plt.scatter(datetime, df[utils.inb_l][begin:end], label=utils.inb_l, c='k', s=10)
-    plt.scatter(datetime, df[utils.inr_l][begin:end], label=utils.inr_l, c='c', s=10)
-    #plt.xticks(rotation=50)
-    plt.legend()
+    # plt.subplot(3, 1, 3)
+    # plt.title('Carbohydrate intake')
+    # plt.scatter(datetime, df['cho2'][begin:end], label='cho2', s=6)
+    # plt.scatter(datetime, df[utils.cho_l][begin:end], label='cho', s=10)
+    # plt.legend()
+    # plt.ylabel('[g]')
 
     plt.subplot(3, 1, 3)
-    plt.title('Carbohydrate intake')
-    plt.scatter(datetime, df['cho2'][begin:end], label='cho2', s=6)
-    plt.scatter(datetime, df[utils.cho_l][begin:end], label='cho', s=10)
+    plt.title('Heartbeat, Electrodermal activity, Skin temperature, Air temperature')
+    plt.plot(datetime, np.zeros(len(datetime)), c='w') # dummy
+    plt.plot(datetime, df['Heartbeat'][begin:end], label='Heartbeat [bps]')
+    plt.plot(datetime, df['Electrodermal activity'][begin:end]*10, label='Electrodermal activity [uS]')
+    plt.plot(datetime, df['Skin temperature'][begin:end], label='Skin temperature [°C]')
+    plt.plot(datetime, df['Air temperature'][begin:end], label='Air temperature [°C]')
+    plt.plot(datetime, df['Steps'][begin:end], label='Steps')
     plt.legend()
-    plt.ylabel('[g]')
+
+    plt.tight_layout()
+    plt.xlabel('time')
 
 def plot_derivations(df, begin=0, end=0, title=''):
     if end==0:
@@ -298,10 +333,11 @@ def load_data(patientID, from_file=False, fill_missing='', smooth='', derivation
         df = to_datetime(df, 'Device Time')
         df = get_ist(df, fill_missing)
         df = get_cho(df)
+        df = get_pa(df)
         df = process_time(df)
 
         if smooth == 'savgol':
-            df['ist'] = savgol_filter(df['Interstitial glucose'], 51, 3) # window size 51, polynomial order 3
+            df['ist'] = savgol_filter(df['Interstitial glucose'], 21, 3) # window size 51, polynomial order 3
         else:
             df['ist'] = df['Interstitial glucose']
         if derivation != '':
@@ -325,6 +361,8 @@ def load_data(patientID, from_file=False, fill_missing='', smooth='', derivation
         plot_graph(df, end=288, title = '24h dataset')
         plot_derivations(df, title = 'Whole dataset')
         plot_derivations(df, end=288, title = '24h dataset')
+        # example patientID 575
+        plot_graph(df, begin=5*288-30, end=7*288-30, title = '48h dataset')
 
     # df = replace_nan(df)
     return df

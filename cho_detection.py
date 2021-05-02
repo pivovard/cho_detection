@@ -2,8 +2,6 @@ import pandas as pd
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
-import matplotlib as mpl
-from matplotlib import colors
 
 from scipy import linalg
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
@@ -35,7 +33,7 @@ def plot_eval(self, y_label, y_pred, TP, FN, FP, begin=0, end=0, title=''):
     plt.scatter(datetime, y_pred[begin:end], label='predicted', s=6)
     plt.scatter(datetime, y_label[begin:end], label='label', s=6)
     # plt.plot(range(end-begin), self.df_test[begin:end])
-    plt.legend()
+    # plt.legend()
 
     plt.subplot(4, 1, 2)
     plt.title('TP')
@@ -96,7 +94,7 @@ def create_window(df, y_label, width):
         X[i] = df[i:i+width]
     return X, y
 
-def create_window2(df, y_label, width, shift):
+def create_window_shifted(df, y_label, width, shift):
     #shape (number of windows, window width, columns count)
     X = np.empty((len(df)-width, width, len(df.columns)))
     y = y_label[int(width-shift):-int(shift)]
@@ -104,18 +102,14 @@ def create_window2(df, y_label, width, shift):
         X[i] = df[i:i+width]
     return X, y
 
-def lstm(self, df=None):
+def lstm(self, headers, label, df=None):
     if df is None:
-        df = self.df_test.reset_index(drop=True)
+        df = self.df_train.reset_index(drop=True)
     else:
         df = df.reset_index(drop=True)
-        
-    headers = ['Interstitial glucose', 'd1']
-    # headers = ['Interstitial glucose', 'd1', 'd2', 'd3', 'hour', 'quarter']
 
-    X, y = create_window(self.df_train[headers], self.df_train['cho2'], utils.WINDOW_WIDTH_1H*2)
-    # X = self.df_train[headers]
-    # y = self.df_train['cho']
+    X, y = create_window(self.df_train[headers], self.df_train[label], utils.WINDOW_WIDTH_1H*2)
+    X_val, y_val = create_window(self.df_test[headers], self.df_test[label], utils.WINDOW_WIDTH_1H*2)
 
     model = tf.keras.Sequential()
     model.add(
@@ -131,17 +125,32 @@ def lstm(self, df=None):
     model.add(tf.keras.layers.Dense(1))
 
     model.compile(loss=tf.losses.MeanSquaredError(), optimizer=tf.optimizers.Adam(), metrics=[tf.metrics.MeanAbsoluteError()])
-    model.fit(X, y, epochs=200, batch_size= 30,  shuffle=False)
+    model.fit(X, y, epochs=100, batch_size= 64,  shuffle=False, validation_data=(X_val, y_val))
 
+    self.model = model
     model.save('keras_model.h5')
-
-    X, y = create_window(self.df_test[headers], self.df_test['Carbohydrate intake'], utils.WINDOW_WIDTH_1H*2)
-    y_pred = model(X)
-    # y_pred=y_pred[:,-1,0]
-
-    self.evaluate(y, y_pred, 10, 'LSTM')
+    self.lstm_test(headers, label, 15)
 
 ChoDetector.lstm = lstm
+
+def lstm_test(self, headers, label, th, path=None, df=None):
+    if df is None:
+        df = self.df_test.reset_index(drop=True)
+    else:
+        df = df.reset_index(drop=True)
+
+    model = None
+    if path is None:
+        model = self.model
+    else:
+        model = tf.keras.models.load_model(path)
+    
+    X, y = create_window(df[headers], df[label], utils.WINDOW_WIDTH_1H*2)
+    y_pred = model(X)
+
+    self.evaluate(y, y_pred, th, 'LSTM')
+
+ChoDetector.lstm_test = lstm_test
 
 def window_stack(a, stepsize=1, width=12):
     n = a.shape[0]

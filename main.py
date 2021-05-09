@@ -9,7 +9,7 @@ import utils
 
 # wrong 540
 # good  570 575
-ID = 570
+ID = 575
 IDs=[540,544,552,559,563,570,575,584,588,591,596]
 
 # Parse log file to csv file
@@ -39,10 +39,11 @@ headers = [utils.ist_l, 'weekday', 'd1', 'd2', 'd3']
 # cho.lda(df, headers, 'multiple values')
 # cho.lda(df, ['ist', 'd1'], 'multiple values')
 
-headers = ['Interstitial glucose', 'd1', 'minute_n']
-cho.lstm(df, headers,'cho2')
-cho.lstm_test(headers, 'Carbohydrate intake', 15, 'keras_model.h5', df[30*utils.WINDOW_WIDTH_24H:32*utils.WINDOW_WIDTH_24H])
-cho.lstm_test(headers, 'Carbohydrate intake', 15, 'keras_model.h5', df[:2*utils.WINDOW_WIDTH_24H])
+headers = ['ist', 'd1', 'minute_n']
+cho.lstm(df, headers,'cho2',epochs=100)
+# cho.lstm_test(df[30*utils.WINDOW_WIDTH_24H:32*utils.WINDOW_WIDTH_24H], headers, 'Carbohydrate intake', 15, path='keras_model.h5',)
+# cho.lstm_test(df[:2*utils.WINDOW_WIDTH_24H], headers, 'Carbohydrate intake', 15, path='keras_model.h5', )
+cho.lstm_test(df, headers, 'Carbohydrate intake', 15, path='keras_model.h5', )
 
 # 575 NECHAT JAKO UKAZKOVY!!!
 # act = cho.threshold(df[30*utils.WINDOW_WIDTH_24H:32*utils.WINDOW_WIDTH_24H])

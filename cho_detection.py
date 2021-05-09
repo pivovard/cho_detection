@@ -54,7 +54,7 @@ def lstm(df, headers, label, width=utils.WINDOW_WIDTH_1H*2, epochs=100):
     model.summary()
 
     model.save('keras_model.h5')
-    lstm_test(headers, label, 15)
+    lstm_test(df, headers, label, 15, model=model)
 
     return model
 
@@ -105,40 +105,45 @@ def lstm_test(df, headers, label, th, model = None, path=None):
     y_pred = model(X)
 
     utils.evaluate(y, y_pred, th, 'LSTM')
+    utils.plot_eval(df, y, y_pred, title='LSTM')
 
 
 def window_stack(a, stepsize=1, width=12):
     n = a.shape[0]
     return np.hstack( a[i:1+n+i-width:stepsize] for i in range(0,width) )
 
-def lda_window(df, headers, width, title):
+def lda_window(df, header, width):
     lda = LinearDiscriminantAnalysis(solver="svd", store_covariance=True)
     qda = QuadraticDiscriminantAnalysis(store_covariance=True)
 
     df_train = df[:int(len(df)*0.8)].reset_index(drop=True).fillna(0)
     df_test = df[int(len(df)*0.8):].reset_index(drop=True).fillna(0)
 
-    df_train['product'] = np.ones(len(df_train))
-    df_test['product'] = np.ones(len(df_test))
-    for i, col in enumerate(headers):
-        df_train['product'] = df_train['product'] * df_train[col]    
-        df_test['product'] = df_test['product'] * df_test[col]    
+    # df_train['product'] = np.ones(len(df_train))
+    # df_test['product'] = np.ones(len(df_test))
+    # for i, col in enumerate(headers):
+    #     df_train['product'] = df_train['product'] * df_train[col]    
+    #     df_test['product'] = df_test['product'] * df_test[col]
 
-    X = window_stack(df_train[['product']], width=width)
+    X = window_stack(df_train[[header]], width=width)    
+    # X = window_stack(df_train[['product']], width=width)
     y = df_train['cho2_b'][width-1:]
     print("Input shape" + str(X.shape))
 
     lda.fit(X, y)
     qda.fit(X, y)
 
-    X = window_stack(df_test[['product']], width=width)
+    X = window_stack(df_test[[header]], width=width)
+    # X = window_stack(df_test[['product']], width=width)
     y = df_test['cho_b'][width-1:]
     y_pred=lda.predict(X)
-    utils.evaluate(y, y_pred, 0, 'LDA '+title)
-    utils.plot_eval(df_test, y, y_pred, title='LDA '+title)
+    utils.evaluate(y, y_pred, 0, f'LDA window of {header}')
+    utils.plot_eval(df_test, y, y_pred, title=f'LDA window of {header}')
     y_pred=qda.predict(X)
-    utils.evaluate(y, y_pred, 0, 'QDA '+title)
-    utils.plot_eval(df_test, y, y_pred, title='QDA '+title)
+    utils.evaluate(y, y_pred, 0, f'LDA window of {header}')
+    utils.plot_eval(df_test, y, y_pred, title=f'LDA window of {header}')
+
+    return lda, qda
 
 def lda(df, headers, title):
     lda = LinearDiscriminantAnalysis(solver="svd", store_covariance=True)
@@ -196,6 +201,8 @@ def lda(df, headers, title):
                        norm=colors.Normalize(0., 1.), zorder=0)
         plt.contour(xx, yy, Z, [0.5], linewidths=2., colors='white')
         plt.legend()
+
+    return lda, qda
 
 def threshold(df=None, th = [0.0125, 0.018], weight = [2.25,3]):
     df = df.reset_index(drop=True)

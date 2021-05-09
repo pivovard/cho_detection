@@ -6,7 +6,6 @@ from datetime import datetime
 from tabulate import tabulate
 
 import utils
-import threading
 
 def load_log(patientID, verbose=True):
     path = f'data/{patientID}-ws-training.log'
@@ -49,14 +48,7 @@ def load_log(patientID, verbose=True):
 def load_log_all(patientIDs):
     utils.print_h('START')
 
-    th=[]
     for i, id in enumerate(patientIDs):
         load_log(patientID=id, verbose=True)
-        # x=threading.Thread(target=load_log, args=(id, False))
-        # th.append(x)
-        # x.start()
-
-    # for i, thread in enumerate(th):
-    #     thread.join()
 
     utils.print_h('END')

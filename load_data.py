@@ -24,29 +24,19 @@ def process_time(df):
     time = df['datetime'].apply(lambda date : date.time())
 
     df['hour'] = time.apply(lambda t: t.hour)
-    m = df['hour'].min()
-    d = df['hour'].max() - m
-    df['hour'] = df['hour'].apply(lambda t: (t-m)/d)
+    df['hour_n'] = df['hour'].apply(lambda t: t/24)
     
     df['quarter'] = time.apply(lambda t: t.hour*10 + (t.minute/40)*4)
-    m = df['quarter'].min()
-    d = df['quarter'].max() - m
-    df['quarter'] = df['quarter'].apply(lambda t: (t-m)/d)
+    df['quarter_n'] = df['quarter'].apply(lambda t: t/236)
 
     df['minute'] = time.apply(lambda t: t.hour * 60 + t.minute)
-    m = df['minute'].min()
-    d = df['minute'].max() - m
-    df['minute'] = df['minute'].apply(lambda t: (t-m)/d)
+    df['minute_n'] = df['minute'].apply(lambda t: t/1440)
 
     df['timestamp'] = time.apply(lambda t: (t.hour * 60 + t.minute) * 60 + t.second)
-    m = df['timestamp'].min()
-    d = df['timestamp'].max() - m
-    df['timestamp'] = df['timestamp'].apply(lambda t: (t-m)/d)
+    df['timestamp_n'] = df['timestamp'].apply(lambda t: t/86340)
 
     df['weekday'] = df['datetime'].apply(lambda date: date.weekday())
-    m = df['weekday'].min()
-    d = df['weekday'].max() - m
-    df['weekday'] = df['weekday'].apply(lambda t: (t-m)/d)
+    df['weekday_n'] = df['weekday'].apply(lambda t: t/6)
 
     return df
 
@@ -57,7 +47,7 @@ def get_ist(df, fill_missing):
 
     # add missing columns
     headers = ['Carbohydrate intake', 'Physical activity', 'requested insulin bolus', 'requested insulin basal rate',
-               'Steps', 'Heartbeat', 'Electrodermal activity', 'Skin temperature', 'Air temperature']
+               'Acceleration', 'Steps', 'Heartbeat', 'Electrodermal activity', 'Skin temperature', 'Air temperature']
     for i, column in enumerate(headers):
         if not column in df:
             df[column] = np.full(len(df), None)
@@ -71,7 +61,8 @@ def get_ist(df, fill_missing):
             | df['Heartbeat'].notna()
             | df['Electrodermal activity'].notna()
             | df['Skin temperature'].notna()
-            | df['Air temperature'].notna()]
+            | df['Air temperature'].notna()
+            | df['Acceleration'].notna()]
     
     if fill_missing != '':
         print(f'Filling missing values: {type}')
@@ -158,13 +149,24 @@ def get_cho(df):
     print('\nProcessing CHO...')
     df['cho'] = df['Carbohydrate intake']
     df['cho2'] = np.zeros(len(df))
+    df['cho_cat'] = np.zeros(len(df))
     it = df.iterrows()
     for index, row in it:
+        # copy 2h
         if row[utils.cho_l] > 0:
             for i in range(24): #2h
                 if (index+i)>=len(df):
                     break
                 df.loc[index+i, 'cho2'] = df.loc[index+i, 'cho2'] + row[utils.cho_l]
+        # categories
+        if row[utils.cho_l] > 0:
+            df.loc[index+i, 'cho_cat'] = 1
+        if row[utils.cho_l] > 25:
+            df.loc[index+i, 'cho_cat'] = 2
+        elif row[utils.cho_l] > 50:
+            df.loc[index+i, 'cho_cat'] = 3
+        elif row[utils.cho_l] > 75:
+            df.loc[index+i, 'cho_cat'] = 4
     #boolean values
     df['cho_b'] = df[utils.cho_l] > 0
     df['cho2_b'] = df['cho2'] > 0
@@ -175,7 +177,7 @@ def get_pa(df):
     df['pa'] = np.zeros(len(df))
     it = df.iterrows()
     for index, row in it:
-        if row[utils.phy_l] > 0:
+        if pd.notna(row[utils.phy_l]) and row[utils.phy_l] > 0:
             for i in range(12): #2h
                 if (index+i)>=len(df) or df.loc[index+i, utils.cho_l] == 0:
                     break
@@ -229,10 +231,10 @@ def calc_derivations(df, type):
         df['d1'] = np.gradient(df['ist'], delta, edge_order=2)
         df['d2'] = np.gradient(df['d1'], delta, edge_order=2)
         df['d3'] = np.gradient(df['d2'], delta, edge_order=2)
-    elif type == 'manual':
+    elif type == 'difference':
         der = pd.DataFrame(columns=['d1', 'd2', 'd3'], dtype=float)
-        for i in range(len(df)-1):
-            utils.printProgressBar(i, len(df)-1)
+        for i in range(len(df)-2):
+            utils.printProgressBar(i, len(df)-2)
             if (df.loc[i+1,'datetime']-df.loc[i,'datetime']) > timedelta(minutes=5) or df.loc[i,'ist'] == 0 or df.loc[i+1,'ist'] == 0:
                 der.loc[i] = [0,0,0]
                 continue
@@ -240,8 +242,8 @@ def calc_derivations(df, type):
             delta=df.loc[i+1,'datetime']-df.loc[i,'datetime']
             delta=delta.seconds/60
             d1=diff/delta
-            d2=diff/(delta*delta)
-            d3=diff/(delta*delta*delta)
+            d2=(df.loc[i+2,'ist']-df.loc[i+1,'ist']-diff)/(delta*delta)
+            d3=0
             der.loc[i] = [d1,d2,d3]
         df = pd.concat([df, der], axis=1)
     return df

@@ -9,6 +9,7 @@ from scipy import linalg
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
 
+import subprocess
 from datetime import timedelta
 import utils
 
@@ -28,7 +29,7 @@ def create_window_shifted(df, y_label, width, shift):
         X[i] = df[i:i+width]
     return X, y
 
-def lstm(df, headers, label, width=utils.WINDOW_WIDTH_1H*2, epochs=100):
+def lstm(df, headers, label, type, width=utils.WINDOW_WIDTH_1H*2, epochs=100, patientID=''):
     df_train = df[:int(len(df)*0.8)].reset_index(drop=True)
     df_test = df[int(len(df)*0.8):].reset_index(drop=True)
 
@@ -36,15 +37,19 @@ def lstm(df, headers, label, width=utils.WINDOW_WIDTH_1H*2, epochs=100):
     X_val, y_val = create_window(df_test[headers], df_test[label], width)
 
     model = tf.keras.Sequential()
-    model.add(
-        tf.keras.layers.Bidirectional(
+    if type=='LSTM':
+        model.add(tf.keras.layers.Bidirectional(
             tf.keras.layers.LSTM(
                 units=128,
                 input_shape=[X.shape[1], X.shape[2]]
-            )
-        )
-    )
-    model.add(tf.keras.layers.Dropout(rate=0.5))
+            )))
+    elif type=='GRU':
+        model.add(tf.keras.layers.Bidirectional(
+            tf.keras.layers.GRU(
+                units=128,
+                input_shape=[X.shape[1], X.shape[2]]
+            )))
+    model.add(tf.keras.layers.Dropout(rate=0.2))
     model.add(tf.keras.layers.Dense(units=128, activation='relu'))
     model.add(tf.keras.layers.Dense(1))
 
@@ -53,46 +58,13 @@ def lstm(df, headers, label, width=utils.WINDOW_WIDTH_1H*2, epochs=100):
 
     model.summary()
 
-    model.save('keras_model.h5')
+    model.save(f'model/{patientID}_keras_model.h5')
+    try:
+        subprocess.call(['python', 'convert_model.py', f'model/{patientID}_keras_model.h5', f'model/{patientID}_fdeep_model.json'])
+    except:
+        print('Exception in convert script.')
+
     lstm_test(df, headers, label, 15, model=model)
-
-    return model
-
-def lstm_cat(df, headers, label):
-    df_train = df[:int(len(df)*0.8)].reset_index(drop=True)
-    df_test = df[int(len(df)*0.8):].reset_index(drop=True)
-
-    X, y = create_window(df_train[headers], df_train[label], utils.WINDOW_WIDTH_1H*2)
-    X_val, y_val = create_window(df_test[headers], df_test[label], utils.WINDOW_WIDTH_1H*2)
-
-    model = tf.keras.Sequential()
-    model.add(
-        tf.keras.layers.Bidirectional(
-            tf.keras.layers.LSTM(
-                units=128,
-                input_shape=[X.shape[1], X.shape[2]]
-            )
-        )
-    )
-    model.add(tf.keras.layers.Dropout(rate=0.5))
-    model.add(tf.keras.layers.Dense(units=128, activation='relu'))
-    model.add(tf.keras.layers.Dense(2))
-
-    model.compile(loss=tf.losses.MeanSquaredError(), optimizer=tf.optimizers.Adam(), metrics=[tf.metrics.MeanAbsoluteError()])
-    model.fit(X, y, epochs=50, batch_size= 64,  shuffle=False)
-
-    probability_model = tf.keras.Sequential([model, 
-                                         tf.keras.layers.Softmax()])
-
-    predictions = probability_model.predict(X_val)
-    y_pred=np.zeros(len(df_test))
-    for i, val in enumerate(predictions):
-        y_pred[i] = np.argmax(val)
-    # y_pred = predictions.apply(lambda p: np.argmax(p))
-    # np.argmax(predictions)
-    utils.plot_eval(df_test, y_val, y_pred)
-    # model.save('keras_model.h5')
-    # lstm_test(headers, label, 15)
 
     return model
 
@@ -165,21 +137,21 @@ def lda(df, headers, title):
 
     # plot areas
     if len(headers) == 2:
-        cho_true = df_test[df_test['cho_b'] == True]
+        cho_true = df_test[df_test['cho2_b'] == True]
         cho_false = df_test[df_test['cho_b'] == False]
 
         fig = plt.figure(figsize=(12, 8))
         plt.subplot(2, 1, 1)
         plt.suptitle('LDA')
-        plt.scatter(cho_false[headers[0]], cho_false[headers[1]], label='CHO false', s=3, marker='o')
-        plt.scatter(cho_true[headers[0]], cho_true[headers[1]], label='CHO true', s=5, marker='x')
+        plt.scatter(cho_false[headers[0]], cho_false[headers[1]], label='CHO false', s=8, marker='o')
+        plt.scatter(cho_true[headers[0]], cho_true[headers[1]], label='CHO true', s=15, marker='o')
 
         nx, ny = 200, 100
         x_min, x_max = plt.xlim()
         y_min, y_max = plt.ylim()
         xx, yy = np.meshgrid(np.linspace(x_min, x_max, nx),
                              np.linspace(y_min, y_max, ny))
-        Z = lda.predict_proba(np.c_[xx.ravel(), yy.ravel()])
+        Z = lda.predict_proba(np.c_[xx.ravel(), yy.ravel()+1/1000000000000])
         Z = Z[:, 1].reshape(xx.shape)
         plt.pcolormesh(xx, yy, Z, cmap='RdBu',
                        norm=colors.Normalize(0., 1.), zorder=0)

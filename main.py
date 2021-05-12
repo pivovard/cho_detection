@@ -9,7 +9,7 @@ import utils
 
 # wrong 540
 # good  570 575
-ID = 575
+ID = 544
 IDs=[540,544,552,559,563,570,575,584,588,591,596]
 
 # Parse log file to csv file
@@ -17,7 +17,7 @@ IDs=[540,544,552,559,563,570,575,584,588,591,596]
 # load_log.load_log_all(IDs)
 
 # Load data from csv file
-# df = load_data.load_data(ID, fill_missing='', smooth='savgol', derivation='difference', norm='',
+# df = load_data.load_data(ID, fill_missing='', smooth='savgol', derivation='akima', norm='',
 #     verbose=True, graphs=True, analyze=False)
 # Load modified data from file
 df = load_data.load_data(ID, from_file=True, verbose=True, graphs=False, analyze=False)
@@ -37,13 +37,13 @@ plt.show()
 headers = [utils.ist_l, 'weekday', 'd1', 'd2', 'd3']
 # cho.lda_window(df, ['Interstitial glucose'], 24, 'window')
 # cho.lda(df, headers, 'multiple values')
-# cho.lda(df, ['ist', 'd1'], 'multiple values')
+cho.lda(df, ['ist', 'd1'], 'multiple values')
 
 headers = ['ist', 'd1', 'minute_n']
-cho.lstm(df, headers,'cho2',epochs=100)
-# cho.lstm_test(df[30*utils.WINDOW_WIDTH_24H:32*utils.WINDOW_WIDTH_24H], headers, 'Carbohydrate intake', 15, path='keras_model.h5',)
-# cho.lstm_test(df[:2*utils.WINDOW_WIDTH_24H], headers, 'Carbohydrate intake', 15, path='keras_model.h5', )
-cho.lstm_test(df, headers, 'Carbohydrate intake', 15, path='keras_model.h5', )
+# cho.lstm(df, headers,'cho2', 'GRU', epochs=100, patientID=ID)
+# cho.lstm_test(df[30*utils.WINDOW_WIDTH_24H:32*utils.WINDOW_WIDTH_24H], headers, 'Carbohydrate intake', 15, path=f'model/{ID}_keras_model.h5')
+# cho.lstm_test(df[:2*utils.WINDOW_WIDTH_24H], headers, 'Carbohydrate intake', 15, path=f'model/{ID}_keras_model.h5')
+# cho.lstm_test(df, headers, 'Carbohydrate intake', 15, path=f'model/{ID}_keras_model.h5')
 
 # 575 NECHAT JAKO UKAZKOVY!!!
 # act = cho.threshold(df[30*utils.WINDOW_WIDTH_24H:32*utils.WINDOW_WIDTH_24H])

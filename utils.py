@@ -51,7 +51,7 @@ def evaluate(y_label, y_pred, treshold=0, method=''):
         if y > 0:
             cho_count +=1
             y_elements = y_pred[i:i+w]
-            if np.any(y_elements >= treshold):
+            if np.any(y_elements > treshold):
                 TP[i] = True
                 delay += 5*np.argmax(y_elements >= treshold)
             else:
@@ -69,7 +69,7 @@ def evaluate(y_label, y_pred, treshold=0, method=''):
     print(f'TP: {np.count_nonzero(TP)}')
     print(f'FN: {np.count_nonzero(FN)}')
     print(f'FP: {np.count_nonzero(FP)}')
-    S= np.count_nonzero(TP)/(np.count_nonzero(TP)+np.count_nonzero(FN))
+    S= np.count_nonzero(TP)/cho_count
     print(f'S={S*100}%')
     print(f'Delay: {delay/cho_count}')
 

@@ -41,9 +41,9 @@ def process_time(df):
     return df
 
 #drop null IST
-def get_ist(df, fill_missing):
+def get_ist(df, label, fill_missing):
     print('\nProcessing IST...')
-    df_ist = df[df['Interstitial glucose'].notna()].reset_index(drop=True)
+    df_ist = df[df[label].notna()].reset_index(drop=True)
 
     # add missing columns
     headers = ['Carbohydrate intake', 'Physical activity', 'requested insulin bolus', 'requested insulin basal rate',
@@ -67,13 +67,13 @@ def get_ist(df, fill_missing):
     if fill_missing != '':
         print(f'Filling missing values: {type}')
         delta = timedelta(minutes=10)
-        mean = df_ist[utils.ist_l].mean()
+        mean = df_ist[label].mean()
         spline = None
         if fill_missing=='akima':
-            spline = Akima1DInterpolator(df_ist['datetime'],df_ist[utils.ist_l])
+            spline = Akima1DInterpolator(df_ist['datetime'],df_ist[label])
         if fill_missing=='min':
             delta = timedelta(minutes=2)
-            spline = Akima1DInterpolator(df_ist['datetime'],df_ist[utils.ist_l])
+            spline = Akima1DInterpolator(df_ist['datetime'],df_ist[label])
 
         for i in range(len(df_ist)-1):
             d1= df_ist.loc[i, 'datetime']
@@ -95,7 +95,7 @@ def get_ist(df, fill_missing):
                     ist = np.array([mean for i in range(count-1)])
                 elif fill_missing == 'akima' or fill_missing=='min':
                     ist = spline(df_tmp['datetime'])
-                df_tmp[utils.ist_l] = ist
+                df_tmp[label] = ist
                 # print(f'Between {d1} and {d2} add {dates[0]} - {dates[-1]}')
                 df = df.append(df_tmp, ignore_index=True)
 
@@ -107,7 +107,7 @@ def get_ist(df, fill_missing):
     for i, column in enumerate(headers):
         print(f'\nShifting {column}')
         for index, row in df.iterrows():
-            if not pd.isnull(row[column]) and pd.isnull(row['Interstitial glucose']):
+            if not pd.isnull(row[column]) and pd.isnull(row[label]):
                 date_time = row['datetime']
                 value = row[column]
                 print('Original datetime ' + str(row['datetime']))
@@ -140,7 +140,7 @@ def get_ist(df, fill_missing):
                         df.loc[index-1, column] = value
                     
     # Clear null ist
-    df = df[df['Interstitial glucose'].notna()]
+    df = df[df[label].notna()]
     df = df.reset_index(drop=True)
     # df.pop('index') #delete old index column
     return df
@@ -174,14 +174,15 @@ def get_cho(df):
 
 def get_pa(df):
     print('\nProcessing PA...')
-    df['pa'] = np.zeros(len(df))
+    df['pa'] = df['Physical activity']
+    df['pa2'] = np.zeros(len(df))
     it = df.iterrows()
     for index, row in it:
-        if pd.notna(row[utils.phy_l]) and row[utils.phy_l] > 0:
-            for i in range(12): #2h
-                if (index+i)>=len(df) or df.loc[index+i, utils.cho_l] == 0:
+        if not pd.isnull(row[utils.phy_l]) and row[utils.phy_l] > 0:
+            for i in range(12): #1h
+                if (index+i)>=len(df):
                     break
-                df.loc[index+i, 'pa'] = row[utils.cho_l]
+                df.loc[index+i, 'pa2'] = row[utils.phy_l]
     return df
 
 #NaN -> 0, - -> 0
@@ -278,13 +279,6 @@ def plot_graph(df, begin=0, end=0, title=''):
     #plt.xticks(rotation=50)
     plt.legend()
 
-    # plt.subplot(3, 1, 3)
-    # plt.title('Carbohydrate intake')
-    # plt.scatter(datetime, df['cho2'][begin:end], label='cho2', s=6)
-    # plt.scatter(datetime, df[utils.cho_l][begin:end], label='cho', s=10)
-    # plt.legend()
-    # plt.ylabel('[g]')
-
     plt.subplot(3, 1, 3)
     plt.title('Heartbeat, Electrodermal activity, Skin temperature, Air temperature')
     plt.plot(datetime, np.zeros(len(datetime)), c='w') # dummy
@@ -321,11 +315,12 @@ def plot_derivations(df, begin=0, end=0, title=''):
     plt.plot(datetime, df['d3'][begin:end], label='d3 [mmol/l/t^4]')
     plt.legend()
 
-def load_data(patientID, from_file=False, fill_missing='', smooth='', derivation='', norm='',
+def load_data(patientID, from_file=False, label=utils.ist_l, fill_missing='',
+              smooth='', derivation='', norm='',
               verbose=True, graphs=False, analyze=False):
     if from_file:
         utils.print_h(f'Loading data from file {patientID}')
-        df = pd.read_csv(f'data/{patientID}-modified.csv', sep=';')
+        df = pd.read_csv(f'data/{patientID}-modified-{label}.csv', sep=';')
         #set datetime type
         df = to_datetime(df, 'datetime')
     else:
@@ -338,7 +333,7 @@ def load_data(patientID, from_file=False, fill_missing='', smooth='', derivation
             print(df.describe().transpose(), end='\n\n')
 
         df = to_datetime(df, 'Device Time')
-        df = get_ist(df, fill_missing)
+        df = get_ist(df, label, fill_missing)
         df = get_cho(df)
         df = get_pa(df)
         df = process_time(df)
@@ -352,7 +347,7 @@ def load_data(patientID, from_file=False, fill_missing='', smooth='', derivation
         if norm != '':
             df = normalize(df, norm)
 
-        df.to_csv(f'data/{patientID}-modified.csv', index=False, sep=';')
+        df.to_csv(f'data/{patientID}-modified-{label}.csv', index=False, sep=';')
 
     if verbose:
         print('Training data:')
@@ -374,12 +369,12 @@ def load_data(patientID, from_file=False, fill_missing='', smooth='', derivation
     # df = replace_nan(df)
     return df
 
-def load_data_all(patientIDs, from_file, fill_missing='', smooth='', derivation='', norm=''):
+def load_data_all(patientIDs, from_file, label=utils.ist_l, fill_missing='', smooth='', derivation='', norm=''):
     utils.print_h('START')
 
     dfs=pd.DataFrame()
     for i, id in enumerate(patientIDs):
-        d=load_data(patientID=id, from_file=from_file,
+        d=load_data(patientID=id, from_file=from_file, label=label,
                     fill_missing=fill_missing, smooth=smooth, derivation=derivation, norm=norm)
         dfs=dfs.append(d)
     dfs=dfs.reset_index(drop=True)

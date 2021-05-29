@@ -227,12 +227,16 @@ def threshold(df=None, th = [0.0125, 0.018], weight = [2.25,3]):
     fig.canvas.set_window_title("Treshold")
 
     plt.subplot(3, 1, 1)
-    plt.plot(datetime, df['ist'], label='ist')
-    plt.scatter(datetime, df['cho']*0.2, label='cho *0.2', s=10, c='g')
-    plt.scatter(datetime, df[utils.phy_l], label='activity', s=10, c='y', marker='^')
-    plt.scatter(datetime, detected2, label='det. cho dec', s=10, c='b', marker='*')
-    plt.scatter(datetime, detected, label='det. cho inc', s=10, c='r', marker='*')
+    plt.plot(datetime, df['ist'], label='Intersticiální glukóza')
+    plt.scatter(datetime, df['cho']*0.2, label='Karbohydráty *0.2', s=15, c='g')
+    # plt.scatter(datetime, df[utils.phy_l], label='activity', s=10, c='y', marker='^')
+    plt.scatter(datetime, detected2, label='Klesající hrana', s=10, c='b', marker='*')
+    plt.scatter(datetime, detected, label='Rostoucí hrana', s=10, c='r', marker='*')
+    # plt.plot(datetime, np.full(N, 3), label='Nízká pravděpodobnost')
+    # plt.plot(datetime, np.full(N, 5.5), label='Vysoká pravděpodobnost')
     # plt.scatter(datetime, detected_m, label='decrease', s=10, c='b', marker='*')
+    plt.xlabel('čas [mm-dd hh]')
+    plt.ylabel('mmol/l')
     plt.legend()
     plt.subplot(3, 1, 2)
     plt.plot(datetime, np.full(len(df), 0.018), label='treshold 0.018')
@@ -243,5 +247,6 @@ def threshold(df=None, th = [0.0125, 0.018], weight = [2.25,3]):
     plt.subplot(3, 1, 3)
     plt.plot(datetime, activation, label='activation')
     plt.legend()
+    plt.tight_layout()
 
     return activation

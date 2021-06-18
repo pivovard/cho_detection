@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 import tensorflow as tf
-from keras_visualizer import visualizer 
 import matplotlib.pyplot as plt
 from matplotlib import colors
 
@@ -13,6 +12,7 @@ import subprocess
 from datetime import timedelta
 import utils
 
+## Split data into the sliding window
 def create_window(df, y_label, width):
     #shape (number of windows, window width, columns count)
     X = np.empty((len(df)-width, width, len(df.columns)))
@@ -21,6 +21,7 @@ def create_window(df, y_label, width):
         X[i] = df[i:i+width]
     return X, y
 
+## Split data into the sliding window (shifted reference values)
 def create_window_shifted(df, y_label, width, shift):
     #shape (number of windows, window width, columns count)
     X = np.empty((len(df)-width, width, len(df.columns)))
@@ -29,6 +30,7 @@ def create_window_shifted(df, y_label, width, shift):
         X[i] = df[i:i+width]
     return X, y
 
+## Train RNN
 def lstm(df, headers, label, type, width=utils.WINDOW_WIDTH_1H*2, epochs=100, patientID=''):
     df_train = df[:int(len(df)*0.8)].reset_index(drop=True)
     df_test = df[int(len(df)*0.8):].reset_index(drop=True)
@@ -64,10 +66,9 @@ def lstm(df, headers, label, type, width=utils.WINDOW_WIDTH_1H*2, epochs=100, pa
     except:
         print('Exception in convert script.')
 
-    lstm_test(df, headers, label, 15, model=model)
-
     return model
 
+## Evaluate RNN
 def lstm_test(df, headers, label, th, model = None, path=None):
     df = df.reset_index(drop=True)
     if model is None:
@@ -79,12 +80,13 @@ def lstm_test(df, headers, label, th, model = None, path=None):
     utils.evaluate(y, y_pred, th, 'LSTM')
     utils.plot_eval(df, y, y_pred, title='LSTM')
 
-
+## Stack data into the sliding window
 def window_stack(a, stepsize=1, width=12):
     n = a.shape[0]
     return np.hstack( a[i:1+n+i-width:stepsize] for i in range(0,width) )
 
-def lda_window(df, header, width):
+## Train LDA/QDA with sliding window
+def lda_window(df, header, width, title):
     lda = LinearDiscriminantAnalysis(solver="svd", store_covariance=True)
     qda = QuadraticDiscriminantAnalysis(store_covariance=True)
 
@@ -112,11 +114,12 @@ def lda_window(df, header, width):
     utils.evaluate(y, y_pred, 0, f'LDA window of {header}')
     utils.plot_eval(df_test, y, y_pred, title=f'LDA window of {header}')
     y_pred=qda.predict(X)
-    utils.evaluate(y, y_pred, 0, f'LDA window of {header}')
-    utils.plot_eval(df_test, y, y_pred, title=f'LDA window of {header}')
+    utils.evaluate(y, y_pred, 0, f'QDA window of {header}')
+    utils.plot_eval(df_test, y, y_pred, title=f'QDA window of {header}')
 
     return lda, qda
 
+## Train LDA/QDA with multiple input data
 def lda(df, headers, title):
     lda = LinearDiscriminantAnalysis(solver="svd", store_covariance=True)
     qda = QuadraticDiscriminantAnalysis(store_covariance=True)
@@ -176,13 +179,10 @@ def lda(df, headers, title):
 
     return lda, qda
 
+## Edge detection
 def threshold(df=None, th = [0.0125, 0.018], weight = [2.25,3]):
     df = df.reset_index(drop=True)
     N=len(df)
-
-    # th = [0, 0.5, 1.25, 1.8]
-    # d1t = [0, 0.005, 0.0125, 0.018]
-    # weight = [1,1.5,2.25,3]
     
     datetime = df['datetime']
 
@@ -229,11 +229,8 @@ def threshold(df=None, th = [0.0125, 0.018], weight = [2.25,3]):
     plt.subplot(3, 1, 1)
     plt.plot(datetime, df['ist'], label='Intersticiální glukóza')
     plt.scatter(datetime, df['cho']*0.2, label='Karbohydráty *0.2', s=15, c='g')
-    # plt.scatter(datetime, df[utils.phy_l], label='activity', s=10, c='y', marker='^')
     plt.scatter(datetime, detected2, label='Klesající hrana', s=10, c='b', marker='*')
     plt.scatter(datetime, detected, label='Rostoucí hrana', s=10, c='r', marker='*')
-    # plt.plot(datetime, np.full(N, 3), label='Nízká pravděpodobnost')
-    # plt.plot(datetime, np.full(N, 5.5), label='Vysoká pravděpodobnost')
     # plt.scatter(datetime, detected_m, label='decrease', s=10, c='b', marker='*')
     plt.xlabel('čas [mm-dd hh]')
     plt.ylabel('mmol/l')

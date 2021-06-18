@@ -11,6 +11,8 @@ import subprocess
 from datetime import timedelta
 import utils
 
+
+
 def plot_pa(data, headers):
     datetime = data['datetime']
 
@@ -83,7 +85,7 @@ def plot_pa(data, headers):
     plt.legend()
     plt.tight_layout()
 
-def get_pa(patientID, df, headers):
+def get_pa(patientID, df, headers, test=''):
     print('\nCalculating PA statistics')
     data = df[headers]
     w=6
@@ -114,7 +116,7 @@ def get_pa(patientID, df, headers):
         data[f'{val} median']=median[:,i]
         data[f'{val} kvartil']=kvartil[:,i]
 
-    data.to_csv(f'data/{patientID}-pa.csv', index=False, sep=';')
+    data.to_csv(f'data/{patientID}-pa{test}.csv', index=False, sep=';')
 
     plot_pa(data, headers)
     # report = sweetviz.analyze(data)
@@ -146,8 +148,118 @@ def predict_pa(patientID, headers):
 
     utils.evaluate(df['pa'], res, 3)
 
+from sklearn.model_selection import train_test_split
+from sklearn import preprocessing
+import sklearn.naive_bayes
+import sklearn.linear_model
+import sklearn.discriminant_analysis
+import sklearn.neighbors
+import sklearn.tree
+import sklearn.svm
+import sklearn.neural_network
 
+def cond(val):
+    if val > 0:
+        return True
+    else:
+        return False
 
+def ML(patientID, headers, scale=''):
+    df = pd.read_csv(f'data/{patientID}-pa.csv', sep=';')
+    df=df.fillna(0)
+    df_test = pd.read_csv(f'data/{patientID}-pa-test.csv', sep=';')
+    df_test=df_test.fillna(0)
+
+    X=pd.DataFrame()
+    X_train=pd.DataFrame()
+    X_test=pd.DataFrame()
+    for i, val in enumerate(headers):
+        # X[f'{val}']=df[f'{val}']
+        X[f'{val} mean']=df[f'{val} mean']
+        X[f'{val} median']=df[f'{val} median']
+        X[f'{val} std']=df[f'{val} std']
+        X[f'{val} kvartil']=df[f'{val} kvartil']
+
+        X_train[f'{val} mean']=df[f'{val} mean']
+        X_train[f'{val} median']=df[f'{val} median']
+        X_train[f'{val} std']=df[f'{val} std']
+        X_train[f'{val} kvartil']=df[f'{val} kvartil']
+
+        X_test[f'{val} mean']=df_test[f'{val} mean']
+        X_test[f'{val} median']=df_test[f'{val} median']
+        X_test[f'{val} std']=df_test[f'{val} std']
+        X_test[f'{val} kvartil']=df_test[f'{val} kvartil']
+
+    y_train= df['pa2'].apply(lambda val : cond(val) )
+    y_test= df_test['pa']
+
+    
+    # X_test = X_train[int(len(X_train)*0.7):].reset_index(drop=True)
+    # X_train = X_train[:int(len(X_train)*0.7)].reset_index(drop=True)
+
+    # y_test = df['pa'][int(len(y_train)*0.7):].reset_index(drop=True)
+    # y_train = y_train[:int(len(y_train)*0.7)].reset_index(drop=True)
+
+    if scale == 'std':
+        scaler = preprocessing.StandardScaler().fit(X_train)
+        X_train = scaler.transform(X_train)
+        X_test = scaler.transform(X_test)
+    elif scale == 'minmax':
+        scaler = preprocessing.MinMaxScaler().fit(X_train)
+        X_train = scaler.transform(X_train)
+        X_test = scaler.transform(X_test)
+
+    # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5, random_state=0)
+
+    print('\nBayes')
+    gnb = sklearn.naive_bayes.GaussianNB()    
+    y_pred = gnb.fit(X_train, y_train).predict(X_test)
+    utils.evaluate(y_test, y_pred, 0)
+
+    print('\nLDA')
+    gnb = sklearn.discriminant_analysis.LinearDiscriminantAnalysis()
+    y_pred = gnb.fit(X_train, y_train).predict(X_test)
+    utils.evaluate(y_test, y_pred, 0)
+
+    print('\nGDA')
+    gnb = sklearn.discriminant_analysis.QuadraticDiscriminantAnalysis()    
+    y_pred = gnb.fit(X_train, y_train).predict(X_test)
+    utils.evaluate(y_test, y_pred, 0)
+
+    print('\nkNN')
+    gnb = sklearn.neighbors.KNeighborsClassifier()    
+    y_pred = gnb.fit(X_train, y_train).predict(X_test)
+    utils.evaluate(y_test, y_pred, 0)
+
+    print('\nTree')
+    gnb = sklearn.tree.DecisionTreeClassifier()    
+    y_pred = gnb.fit(X_train, y_train).predict(X_test)
+    utils.evaluate(y_test, y_pred, 0)
+
+    print('\nSVM')
+    gnb = sklearn.svm.SVC()    
+    y_pred = gnb.fit(X_train, y_train).predict(X_test)
+    utils.evaluate(y_test, y_pred, 0)
+
+    print('\nLogisticRegression')
+    gnb = sklearn.linear_model.LogisticRegression(max_iter=500)
+    y_pred = gnb.fit(X_train, y_train).predict(X_test)
+    utils.evaluate(y_test, y_pred, 0)
+
+    print('\nLogisticRegressionCV')
+    gnb = sklearn.linear_model.LogisticRegressionCV(max_iter=500)    
+    y_pred = gnb.fit(X_train, y_train).predict(X_test)
+    utils.evaluate(y_test, y_pred, 0)
+
+    print('\nPerceptron')
+    gnb = sklearn.linear_model.Perceptron()    
+    y_pred = gnb.fit(X_train, y_train).predict(X_test)
+    utils.evaluate(y_test, y_pred, 0)
+
+    print('\nMLP')
+    gnb = sklearn.neural_network.MLPClassifier()    
+    y_pred = gnb.fit(X_train, y_train).predict(X_test)
+    utils.evaluate(y_test, y_pred, 0)
 
 
 

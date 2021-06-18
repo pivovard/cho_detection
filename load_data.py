@@ -21,6 +21,8 @@ def to_datetime(df, column):
 
 #get timestamp and weekday
 def process_time(df):
+    df['datetime'] = pd.to_datetime(df['datetime'])
+    df = df[df['datetime'].notna()]
     time = df['datetime'].apply(lambda date : date.time())
 
     df['hour'] = time.apply(lambda t: t.hour)
@@ -315,17 +317,17 @@ def plot_derivations(df, begin=0, end=0, title=''):
     plt.plot(datetime, df['d3'][begin:end], label='d3 [mmol/l/t^4]')
     plt.legend()
 
-def load_data(patientID, from_file=False, label=utils.ist_l, fill_missing='',
+def load_data(patientID, from_file=False, type='training', label=utils.ist_l, fill_missing='',
               smooth='', derivation='', norm='',
               verbose=True, graphs=False, analyze=False):
     if from_file:
         utils.print_h(f'Loading data from file {patientID}')
-        df = pd.read_csv(f'data/{patientID}-modified-{label}.csv', sep=';')
+        df = pd.read_csv(f'data/{patientID}-modified-{type}-{label}.csv', sep=';')
         #set datetime type
         df = to_datetime(df, 'datetime')
     else:
         utils.print_h(f'Loading and modifying data from csv {patientID}')
-        df = pd.read_csv(f'data/{patientID}-transposed.csv', sep=';')
+        df = pd.read_csv(f'data/{patientID}-transposed-{type}.csv', sep=';')
 
         if verbose:
             print('Original data:')
@@ -347,7 +349,7 @@ def load_data(patientID, from_file=False, label=utils.ist_l, fill_missing='',
         if norm != '':
             df = normalize(df, norm)
 
-        df.to_csv(f'data/{patientID}-modified-{label}.csv', index=False, sep=';')
+        df.to_csv(f'data/{patientID}-modified-{type}-{label}.csv', index=False, sep=';')
 
     if verbose:
         print('Training data:')
@@ -369,12 +371,12 @@ def load_data(patientID, from_file=False, label=utils.ist_l, fill_missing='',
     # df = replace_nan(df)
     return df
 
-def load_data_all(patientIDs, from_file, label=utils.ist_l, fill_missing='', smooth='', derivation='', norm=''):
+def load_data_all(patientIDs, from_file, type='training', label=utils.ist_l, fill_missing='', smooth='', derivation='', norm=''):
     utils.print_h('START')
 
     dfs=pd.DataFrame()
     for i, id in enumerate(patientIDs):
-        d=load_data(patientID=id, from_file=from_file, label=label,
+        d=load_data(patientID=id, from_file=from_file, type=type, label=label,
                     fill_missing=fill_missing, smooth=smooth, derivation=derivation, norm=norm)
         dfs=dfs.append(d)
     dfs=dfs.reset_index(drop=True)

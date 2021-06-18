@@ -7,8 +7,8 @@ from tabulate import tabulate
 
 import utils
 
-def load_log(patientID, verbose=True):
-    path = f'data/{patientID}-ws-training.log'
+def load_log(patientID, type='training', verbose=True):
+    path = f'data/{patientID}-ws-{type}.log'
 
     print('Transfering data from log file:')
     print(path)
@@ -40,15 +40,15 @@ def load_log(patientID, verbose=True):
 
         data[col].iat[-1] = val
 
-    data.to_csv(f'data/{patientID}-transposed.csv', index=False, sep=';')
+    data.to_csv(f'data/{patientID}-transposed-{type}.csv', index=False, sep=';')
 
     if verbose:
         print(tabulate(data.head(20), headers='keys', tablefmt='psql'))
 
-def load_log_all(patientIDs):
+def load_log_all(patientIDs, type='training'):
     utils.print_h('START')
 
     for i, id in enumerate(patientIDs):
-        load_log(patientID=id, verbose=True)
+        load_log(patientID=id, type=type, verbose=True)
 
     utils.print_h('END')

@@ -9,8 +9,8 @@ import nn
 import utils
 
 
-ID = 563
-IDs=[540,544,552,559,563,570,575,584,588,591,596]
+ID = 559
+IDs=[540,544,552,563,570,575,584,591,596]
 
 ## Parse log file to csv file
 # load_log.load_log(patientID=ID)
@@ -22,7 +22,7 @@ IDs=[540,544,552,559,563,570,575,584,588,591,596]
 #                          smooth='savgol', derivation='difference', norm='',
 #                          verbose=True, graphs=True, analyze=False)
 ## Load modified data from file
-df = load_data.load_data(ID, label='Interstitial glucose', from_file=True, verbose=True, graphs=False, analyze=False)
+# df = load_data.load_data(ID, label='Interstitial glucose', from_file=True, verbose=True, graphs=False, analyze=False)
 ## Load multiple csv files
 # df = load_data.load_data_all(IDs, from_file=True, fill_missing='', smooth='savgol', derivation='difference', norm='')
 
@@ -39,11 +39,11 @@ df = load_data.load_data(ID, label='Interstitial glucose', from_file=True, verbo
 # cho.lda(df, headers, 'multiple values')
 
 ## CHO prediction RNN
-headers = ['ist', 'd1', 'minute_n']
-cho.lstm(df, headers,'cho2', 'GRU', epochs=100, patientID=ID)
+# headers = ['ist', 'd1', 'minute_n']
+# cho.lstm(df, headers,'cho2', 'GRU', epochs=100, patientID=1)
 # cho.lstm_test(df[30*utils.WINDOW_WIDTH_24H:32*utils.WINDOW_WIDTH_24H], headers, 'Carbohydrate intake', 15, path=f'model/{ID}_keras_model.h5')
 # cho.lstm_test(df[:2*utils.WINDOW_WIDTH_24H], headers, 'Carbohydrate intake', 15, path=f'model/{ID}_keras_model.h5')
-cho.lstm_test(df, headers, 'Carbohydrate intake', 12, path=f'model/{ID}_keras_model.h5')
+# cho.lstm_test(df, headers, 'Carbohydrate intake', 12, path=f'model/{ID}_keras_model.h5')
 # plt.show()
 
 ## load data and train RNN for all pacients
@@ -70,13 +70,14 @@ ID = 559
 #                          smooth='', derivation='difference', norm='',
 #                          verbose=True, graphs=True, analyze=False)
 ## Load modified data from file
-# df = load_data.load_data(ID, label='Interstitial glucose', from_file=True, verbose=True, graphs=False, analyze=False)
+df = load_data.load_data(ID, label='Heartbeat', from_file=True, verbose=True, graphs=False, analyze=False)
 
 # headers=['Heartbeat', 'Steps', 'Electrodermal activity', 'Skin temperature']
 headers=['Heartbeat', 'Steps']
 # headers=['Acceleration']
 
-# pa.get_pa(ID, df, headers)
+df = pa.get_pa(ID, df, headers)
+pa.export_pa(df, headers, ID)
 # pa.predict_pa(ID, headers)
 # pa.ML(ID, headers)
 

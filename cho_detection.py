@@ -32,10 +32,11 @@ def create_window_shifted(df, y_label, width, shift):
 
 ## Train RNN
 def lstm(df, headers, label, type, width=utils.WINDOW_WIDTH_1H*2, epochs=100, patientID=''):
+    df=df.fillna(0)
     df_train = df[:int(len(df)*0.8)].reset_index(drop=True)
     df_test = df[int(len(df)*0.8):].reset_index(drop=True)
 
-    X, y = create_window(df_train[headers], df_train[label], width)
+    X, y = create_window(df[headers], df[label], width)
     X_val, y_val = create_window(df_test[headers], df_test[label], width)
 
     model = tf.keras.Sequential()
@@ -56,7 +57,7 @@ def lstm(df, headers, label, type, width=utils.WINDOW_WIDTH_1H*2, epochs=100, pa
     model.add(tf.keras.layers.Dense(1))
 
     model.compile(loss=tf.losses.MeanSquaredError(), optimizer=tf.optimizers.Adam(), metrics=[tf.metrics.MeanAbsoluteError()])
-    model.fit(X, y, epochs=epochs, batch_size= 64,  shuffle=False, validation_data=(X_val, y_val))
+    model.fit(X, y, epochs=epochs, batch_size= 64,  shuffle=False)
 
     model.summary()
 

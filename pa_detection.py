@@ -124,6 +124,19 @@ def get_pa(patientID, df, headers, test=''):
 
     return data
 
+def export_pa(df, headers, patientID):
+    data = pd.DataFrame()
+    data['pa'] = df['pa2'].apply(lambda val : (int)(cond(val)) )
+
+    for i, val in enumerate(headers):
+        data[f'{val} mean']=df[f'{val} mean']
+        data[f'{val} median']=df[f'{val} median']
+        data[f'{val} std']=df[f'{val} std']
+        data[f'{val} kvartil']=df[f'{val} kvartil']
+    
+    print(data.head())
+    data.to_csv(f'model/{patientID}-pa-export.csv', sep=',', index=False, header=False)
+
 def predict_pa(patientID, headers):
     df = pd.read_csv(f'data/{patientID}-pa.csv', sep=';')
 

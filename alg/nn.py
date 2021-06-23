@@ -1,3 +1,9 @@
+"""
+This script creates RNN keras model for predicting IST.
+
+@author Bc. David Pivovar
+"""
+
 import pandas as pd
 import numpy as np
 import tensorflow as tf
@@ -5,8 +11,8 @@ import matplotlib.pyplot as plt
 
 from datetime import timedelta
 
-from WindowGenerator import WindowGenerator
-import utils
+from alg.WindowGenerator import WindowGenerator
+import alg.utils as utils
 
 MAX_EPOCHS = 3
 

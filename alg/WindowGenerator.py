@@ -1,3 +1,9 @@
+"""
+Window generotor class for RNN keras model.
+
+@author Bc. David Pivovar
+"""
+
 import pandas as pd
 import numpy as np
 import tensorflow as tf

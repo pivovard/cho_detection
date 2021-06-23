@@ -1,3 +1,11 @@
+"""
+This script transpose measured data from the log file to the csv file,
+where columns are signals and row is time.
+No data modification is made.
+
+@author Bc. David Pivovar
+"""
+
 from numpy.core.records import array
 import pandas as pd
 import numpy as np
@@ -5,8 +13,9 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 from tabulate import tabulate
 
-import utils
+import alg.utils as utils
 
+#transpose data from log file to csv file
 def load_log(patientID, type='training', verbose=True):
     path = f'data/{patientID}-ws-{type}.log'
 
@@ -45,6 +54,7 @@ def load_log(patientID, type='training', verbose=True):
     if verbose:
         print(tabulate(data.head(20), headers='keys', tablefmt='psql'))
 
+#transpose multimple log files
 def load_log_all(patientIDs, type='training'):
     utils.print_h('START')
 

@@ -1,3 +1,13 @@
+"""
+Train and evaluate algorithms for carbohydrate detection.
+
+- RNN (keras model)
+- LDA/GDA
+- Edge detection
+
+@author Bc. David Pivovar
+"""
+
 import pandas as pd
 import numpy as np
 import tensorflow as tf
@@ -10,7 +20,7 @@ from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
 
 import subprocess
 from datetime import timedelta
-import utils
+import alg.utils as utils
 
 ## Split data into the sliding window
 def create_window(df, y_label, width):

@@ -1,3 +1,15 @@
+"""
+This script loads and modifies csv data file.
+- squash data by selected column.
+- smooth signal
+- normalize data
+- calc derivations
+- plot graphs
+- calc statistics
+
+@author Bc. David Pivovar
+"""
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -11,8 +23,9 @@ from tabulate import tabulate
 from datetime import datetime
 from datetime import timedelta
 
-import utils
+import alg.utils as utils
 
+#convert time to datetime format
 def to_datetime(df, column):
     device_time = df.pop(column)
     date_time = pd.to_datetime(device_time, format='%Y-%m-%d %H:%M:%S')
@@ -42,7 +55,7 @@ def process_time(df):
 
     return df
 
-#drop null IST
+#squash rows by 'label' column (drop nulls)
 def get_ist(df, label, fill_missing):
     print('\nProcessing IST...')
     df_ist = df[df[label].notna()].reset_index(drop=True)
@@ -147,6 +160,7 @@ def get_ist(df, label, fill_missing):
     # df.pop('index') #delete old index column
     return df
 
+#get CHO values and copy them to 2h window
 def get_cho(df):
     print('\nProcessing CHO...')
     df['cho'] = df['Carbohydrate intake']
@@ -174,6 +188,7 @@ def get_cho(df):
     df['cho2_b'] = df['cho2'] > 0
     return df
 
+#get physical activity values and copy them to 1h window
 def get_pa(df):
     print('\nProcessing PA...')
     df['pa'] = df['Physical activity']
@@ -199,6 +214,7 @@ def replace_nan(df):
     df_clean['datetime'] = date_time
     return df_clean
 
+#normalize data to the interval <0,1> or <-1,1>
 def normalize(df, type):
     print(f'\nNormalization: {type}')
     if type == 'std':
@@ -214,6 +230,7 @@ def normalize(df, type):
             df[f'{column}'] = df[column].apply(lambda t: (t-m)/d)
     return df
 
+#calculate derivations from the interstitial glucose
 def calc_derivations(df, type):
     print(f'\nCalculating derivations: {type}')
     if type == 'akima':
@@ -317,39 +334,55 @@ def plot_derivations(df, begin=0, end=0, title=''):
     plt.plot(datetime, df['d3'][begin:end], label='d3 [mmol/l/t^4]')
     plt.legend()
 
-def load_data(patientID, from_file=False, type='training', label=utils.ist_l, fill_missing='',
-              smooth='', derivation='', norm='',
+#load transposed data of patient, modifie them and return in DataFrame
+def load_data(patientID, type='training', label=utils.ist_l,
+              fill_missing='',smooth='', derivation='', norm='',
               verbose=True, graphs=False, analyze=False):
-    if from_file:
-        utils.print_h(f'Loading data from file {patientID}')
-        df = pd.read_csv(f'data/{patientID}-modified-{type}-{label}.csv', sep=';')
-        #set datetime type
-        df = to_datetime(df, 'datetime')
+    
+    utils.print_h(f'Loading and modifying data from csv {patientID}')
+    df = pd.read_csv(f'data/{patientID}-transposed-{type}.csv', sep=';')
+    if verbose:
+        print('Original data:')
+        print(tabulate(df.head(20), headers = 'keys', tablefmt = 'psql'))
+        print(df.describe().transpose(), end='\n\n')
+    df = to_datetime(df, 'Device Time')
+    df = get_ist(df, label, fill_missing)
+    df = get_cho(df)
+    df = get_pa(df)
+    df = process_time(df)
+    if smooth == 'savgol':
+        df['ist'] = savgol_filter(df['Interstitial glucose'], 21, 3) # window size 51, polynomial order 3
     else:
-        utils.print_h(f'Loading and modifying data from csv {patientID}')
-        df = pd.read_csv(f'data/{patientID}-transposed-{type}.csv', sep=';')
+        df['ist'] = df['Interstitial glucose']
+    if derivation != '':
+        df = calc_derivations(df, derivation)
+    if norm != '':
+        df = normalize(df, norm)
+    df.to_csv(f'data/{patientID}-modified-{type}-{label}.csv', index=False, sep=';')
 
-        if verbose:
-            print('Original data:')
-            print(tabulate(df.head(20), headers = 'keys', tablefmt = 'psql'))
-            print(df.describe().transpose(), end='\n\n')
+    if verbose:
+        print('Training data:')
+        print(tabulate(df.head(20), headers = 'keys', tablefmt = 'psql'))
+        print(df.describe().transpose(), end='\n\n')
 
-        df = to_datetime(df, 'Device Time')
-        df = get_ist(df, label, fill_missing)
-        df = get_cho(df)
-        df = get_pa(df)
-        df = process_time(df)
+    if analyze:
+        report = sweetviz.analyze(df)
+        report.show_html()
 
-        if smooth == 'savgol':
-            df['ist'] = savgol_filter(df['Interstitial glucose'], 21, 3) # window size 51, polynomial order 3
-        else:
-            df['ist'] = df['Interstitial glucose']
-        if derivation != '':
-            df = calc_derivations(df, derivation)
-        if norm != '':
-            df = normalize(df, norm)
+    if graphs:
+        plot_graph(df, title = 'Whole dataset') 
+        plot_graph(df, end=288, title = '24h dataset')
+        plot_derivations(df, title = 'Whole dataset')
+        plot_derivations(df, end=288, title = '24h dataset')
 
-        df.to_csv(f'data/{patientID}-modified-{type}-{label}.csv', index=False, sep=';')
+    return df
+
+#load data from file
+def load_data_file(patientID, type='training', label=utils.ist_l, verbose=True, graphs=False, analyze=False):
+    utils.print_h(f'Loading data from file {patientID}')
+    df = pd.read_csv(f'data/{patientID}-modified-{type}-{label}.csv', sep=';')
+    #set datetime type
+    df = to_datetime(df, 'datetime')
 
     if verbose:
         print('Training data:')
@@ -371,13 +404,17 @@ def load_data(patientID, from_file=False, type='training', label=utils.ist_l, fi
     # df = replace_nan(df)
     return df
 
+#load data of multiple patients, return single DataFrame
 def load_data_all(patientIDs, from_file, type='training', label=utils.ist_l, fill_missing='', smooth='', derivation='', norm=''):
     utils.print_h('START')
 
     dfs=pd.DataFrame()
     for i, id in enumerate(patientIDs):
-        d=load_data(patientID=id, from_file=from_file, type=type, label=label,
-                    fill_missing=fill_missing, smooth=smooth, derivation=derivation, norm=norm)
+        if from_file:
+            d=load_data(patientID=id, type=type, label=label)
+        else:
+            d=load_data(patientID=id, type=type, label=label,
+                        fill_missing=fill_missing, smooth=smooth, derivation=derivation, norm=norm)
         dfs=dfs.append(d)
     dfs=dfs.reset_index(drop=True)
     print(tabulate(dfs.head(20), headers = 'keys', tablefmt = 'psql'))

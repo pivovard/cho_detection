@@ -1,18 +1,24 @@
+"""
+This scripts handles physical activity detection
+- Calculation features of given columns (mean, median, std, quantiles) and export to csv
+- Machine learning algorithms test
+
+@author Bc. David Pivovar
+"""
+
 from numpy.core.fromnumeric import size
 import pandas as pd
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import statistics
-
 import sweetviz
 
 import subprocess
 from datetime import timedelta
-import utils
+import alg.utils as utils
 
-
-
+## plot data and features
 def plot_pa(data, headers):
     datetime = data['datetime']
 
@@ -85,7 +91,8 @@ def plot_pa(data, headers):
     plt.legend()
     plt.tight_layout()
 
-def get_pa(patientID, df, headers, test=''):
+## Calculate features of given columns (mean, median, std, quantiles)
+def get_features(patientID, df, headers, test=''):
     print('\nCalculating PA statistics')
     data = df[headers]
     w=6
@@ -124,42 +131,22 @@ def get_pa(patientID, df, headers, test=''):
 
     return data
 
+## Export features to csv file (without headers)
 def export_pa(df, headers, patientID):
+    df = pd.read_csv(f'data/{patientID}-pa.csv', sep=';')
     data = pd.DataFrame()
     data['pa'] = df['pa2'].apply(lambda val : (int)(cond(val)) )
 
     for i, val in enumerate(headers):
+        # data[f'{val}']=df[f'{val}']
         data[f'{val} mean']=df[f'{val} mean']
         data[f'{val} median']=df[f'{val} median']
         data[f'{val} std']=df[f'{val} std']
         data[f'{val} kvartil']=df[f'{val} kvartil']
     
+    data.fillna(0, inplace=True)    
     print(data.head())
-    data.to_csv(f'model/{patientID}-pa-export.csv', sep=',', index=False, header=False)
-
-def predict_pa(patientID, headers):
-    df = pd.read_csv(f'data/{patientID}-pa.csv', sep=';')
-
-    print('Mean')
-    print(df[df['pa2']>0].mean())
-    print('\nMedian')
-    print(df[df['pa2']>0].median())
-    print('\nQuantil 25%')
-    print(df[df['pa2']>0].quantile(0.25))
-
-    #get thresholds
-    th = df[df['pa2']>0].mean()
-    # th = df[df['pa']>0].quantile(0.85)
-
-    res = np.zeros(len(df))
-    for i, val in enumerate(headers):
-        # res += np.array(df[f'{val}'] >= th[f'{val}'], dtype=int)
-        res += np.array(df[f'{val} mean'] >= th[f'{val} mean'], dtype=int)
-        # res += np.array(df[f'{val} std'] >= th[f'{val} std'], dtype=int)
-        res += np.array(df[f'{val} median'] >= th[f'{val} median'], dtype=int)
-        # res += np.array(df[f'{val} kvartil'] >= th[f'{val} kvartil'], dtype=int)
-
-    utils.evaluate(df['pa'], res, 3)
+    data.to_csv(f'data/{patientID}-pa-export.csv', sep=',', index=False, header=False)
 
 from sklearn.model_selection import train_test_split
 from sklearn import preprocessing
@@ -177,6 +164,7 @@ def cond(val):
     else:
         return False
 
+## Machine learning algorithms test
 def ML(patientID, headers, scale=''):
     df = pd.read_csv(f'data/{patientID}-pa.csv', sep=';')
     df=df.fillna(0)
@@ -187,12 +175,6 @@ def ML(patientID, headers, scale=''):
     X_train=pd.DataFrame()
     X_test=pd.DataFrame()
     for i, val in enumerate(headers):
-        # X[f'{val}']=df[f'{val}']
-        X[f'{val} mean']=df[f'{val} mean']
-        X[f'{val} median']=df[f'{val} median']
-        X[f'{val} std']=df[f'{val} std']
-        X[f'{val} kvartil']=df[f'{val} kvartil']
-
         X_train[f'{val} mean']=df[f'{val} mean']
         X_train[f'{val} median']=df[f'{val} median']
         X_train[f'{val} std']=df[f'{val} std']
@@ -205,13 +187,6 @@ def ML(patientID, headers, scale=''):
 
     y_train= df['pa2'].apply(lambda val : cond(val) )
     y_test= df_test['pa']
-
-    
-    # X_test = X_train[int(len(X_train)*0.7):].reset_index(drop=True)
-    # X_train = X_train[:int(len(X_train)*0.7)].reset_index(drop=True)
-
-    # y_test = df['pa'][int(len(y_train)*0.7):].reset_index(drop=True)
-    # y_train = y_train[:int(len(y_train)*0.7)].reset_index(drop=True)
 
     if scale == 'std':
         scaler = preprocessing.StandardScaler().fit(X_train)
@@ -273,93 +248,3 @@ def ML(patientID, headers, scale=''):
     gnb = sklearn.neural_network.MLPClassifier()    
     y_pred = gnb.fit(X_train, y_train).predict(X_test)
     utils.evaluate(y_test, y_pred, 0)
-
-
-
-
-
-
-
-
-
-
-def create_window(df, y_label, width):
-    #shape (number of windows, window width, columns count)
-    X = np.empty((len(df)-width, width, len(df.columns)))
-    y = y_label[width:]
-    for i in range(len(df)-width):
-        X[i] = df[i:i+width]
-    return X, y
-
-def dense(patientID, headers, label):
-    df = pd.read_csv(f'data/{patientID}-pa.csv', sep=';')
-    df_train = df[:int(len(df)*0.8)].reset_index(drop=True)
-    df_test = df[int(len(df)*0.8):].reset_index(drop=True)
-
-    X = df_train[headers]
-    y = df_train[label]
-
-    model = tf.keras.Sequential()
-    model.add(tf.keras.layers.Dense(units=len(headers), activation='relu'))
-    model.add(tf.keras.layers.Dense(units=128, activation='relu'))
-    model.add(tf.keras.layers.Dense(1))
-
-    model.compile(loss=tf.losses.MeanSquaredError(), optimizer=tf.optimizers.Adam(), metrics=[tf.metrics.MeanAbsoluteError()])
-    model.fit(X, y, epochs=20, batch_size= 64,  shuffle=False)
-
-    model.summary()
-
-    lstm_test(df, headers, label, 15, model=model)
-
-def conv(df, headers):
-    pass
-
-def lstm(df, headers, label, type, width=utils.WINDOW_WIDTH_1H*2, epochs=100, patientID=''):
-    df_train = df[:int(len(df)*0.8)].reset_index(drop=True)
-    df_test = df[int(len(df)*0.8):].reset_index(drop=True)
-
-    X, y = create_window(df_train[headers], df_train[label], width)
-    X_val, y_val = create_window(df_test[headers], df_test[label], width)
-
-    model = tf.keras.Sequential()
-    if type=='LSTM':
-        model.add(tf.keras.layers.Bidirectional(
-            tf.keras.layers.LSTM(
-                units=128,
-                input_shape=[X.shape[1], X.shape[2]]
-            )))
-    elif type=='GRU':
-        model.add(tf.keras.layers.Bidirectional(
-            tf.keras.layers.GRU(
-                units=128,
-                input_shape=[X.shape[1], X.shape[2]]
-            )))
-    model.add(tf.keras.layers.Dropout(rate=0.2))
-    model.add(tf.keras.layers.Dense(units=128, activation='relu'))
-    model.add(tf.keras.layers.Dense(1))
-
-    model.compile(loss=tf.losses.MeanSquaredError(), optimizer=tf.optimizers.Adam(), metrics=[tf.metrics.MeanAbsoluteError()])
-    model.fit(X, y, epochs=epochs, batch_size= 64,  shuffle=False, validation_data=(X_val, y_val))
-
-    model.summary()
-
-    model.save(f'model/{patientID}_keras_model.h5')
-    # try:
-    #     subprocess.call(['python', 'convert_model.py', f'model/{patientID}_keras_model.h5', f'model/{patientID}_fdeep_model.json'])
-    # except:
-    #     print('Exception in convert script.')
-
-    lstm_test(df, headers, label, 15, model=model)
-
-    return model
-
-def lstm_test(df, headers, label, th, model = None, path=None):
-    df = df.reset_index(drop=True)
-    if model is None:
-        model = tf.keras.models.load_model(path)
-    
-    X, y = create_window(df[headers], df[label], utils.WINDOW_WIDTH_1H*2)
-    y_pred = model(X)
-
-    utils.evaluate(y, y_pred, th, 'LSTM')
-    utils.plot_eval(df, y, y_pred, title='LSTM')

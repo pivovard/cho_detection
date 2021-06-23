@@ -41,7 +41,7 @@ def create_window_shifted(df, y_label, width, shift):
     return X, y
 
 ## Train RNN
-def lstm(df, headers, label, type, width=utils.WINDOW_WIDTH_1H*2, epochs=100, patientID=''):
+def rnn(df, headers, label, type, width=utils.WINDOW_WIDTH_1H*2, epochs=100, patientID=''):
     df=df.fillna(0)
     df_train = df[:int(len(df)*0.8)].reset_index(drop=True)
     df_test = df[int(len(df)*0.8):].reset_index(drop=True)
@@ -50,13 +50,13 @@ def lstm(df, headers, label, type, width=utils.WINDOW_WIDTH_1H*2, epochs=100, pa
     X_val, y_val = create_window(df_test[headers], df_test[label], width)
 
     model = tf.keras.Sequential()
-    if type=='LSTM':
+    if type=='lstm':
         model.add(tf.keras.layers.Bidirectional(
             tf.keras.layers.LSTM(
                 units=128,
                 input_shape=[X.shape[1], X.shape[2]]
             )))
-    elif type=='GRU':
+    elif type=='gru':
         model.add(tf.keras.layers.Bidirectional(
             tf.keras.layers.GRU(
                 units=128,
@@ -80,7 +80,7 @@ def lstm(df, headers, label, type, width=utils.WINDOW_WIDTH_1H*2, epochs=100, pa
     return model
 
 ## Evaluate RNN
-def lstm_test(df, headers, label, th, model = None, path=None):
+def rnn_test(df, headers, label, th, model = None, path=None):
     df = df.reset_index(drop=True)
     if model is None:
         model = tf.keras.models.load_model(path)

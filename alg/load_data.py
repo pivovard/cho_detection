@@ -411,7 +411,7 @@ def load_data_all(patientIDs, from_file, type='training', label=utils.ist_l, fil
     dfs=pd.DataFrame()
     for i, id in enumerate(patientIDs):
         if from_file:
-            d=load_data(patientID=id, type=type, label=label)
+            d=load_data_file(patientID=id, type=type, label=label)
         else:
             d=load_data(patientID=id, type=type, label=label,
                         fill_missing=fill_missing, smooth=smooth, derivation=derivation, norm=norm)

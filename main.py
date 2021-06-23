@@ -21,7 +21,7 @@ IDs=[540,544,552,563,570,575,584,591,596]
 
 ## Parse log file to csv file
 # lg.load_log(patientID=ID)
-# lg.load_log_all(IDs, 'testing')
+# lg.load_log_all(IDs, 'training')
 
 
 ## Load data from csv file
@@ -49,8 +49,8 @@ IDs=[540,544,552,563,570,575,584,591,596]
 
 ## CHO prediction RNN
 # headers = ['ist', 'd1', 'minute_n']
-# cho.lstm(df, headers,'cho2', 'GRU', epochs=100, patientID=1)
-# cho.lstm_test(df, headers, 'Carbohydrate intake', 12, path=f'model/{ID}_keras_model.h5')
+# cho.rnn(df, headers,'cho2', 'gru', epochs=100, patientID=1)
+# cho.rnn_test(df, headers, 'Carbohydrate intake', 12, path=f'model/{ID}_keras_model.h5')
 # plt.show()
 
 ## load data and train RNN for all pacients
@@ -58,7 +58,7 @@ IDs=[540,544,552,563,570,575,584,591,596]
 #     df = ld.load_data(ID, label='Interstitial glucose', fill_missing='',
 #                          smooth='savgol', derivation='difference', norm='',
 #                          verbose=True, graphs=False, analyze=False)
-#     cho.lstm(df, headers,'cho2', 'GRU', epochs=100, patientID=ID)
+#     cho.rnn(df, headers,'cho2', 'gru', epochs=100, patientID=ID)
 
 ## CHO prediction threshold
 # act = cho.threshold(df)

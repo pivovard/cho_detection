@@ -41,7 +41,7 @@ def create_window_shifted(df, y_label, width, shift):
     return X, y
 
 ## Train RNN
-def rnn(df, headers, label, type, width=utils.WINDOW_WIDTH_1H*2, epochs=100, patientID=''):
+def rnn(df, headers, label, type, width=utils.WINDOW_WIDTH_1H*2, epochs=100, path='', patientID=''):
     df=df.fillna(0)
     df_train = df[:int(len(df)*0.8)].reset_index(drop=True)
     df_test = df[int(len(df)*0.8):].reset_index(drop=True)
@@ -71,9 +71,11 @@ def rnn(df, headers, label, type, width=utils.WINDOW_WIDTH_1H*2, epochs=100, pat
 
     model.summary()
 
-    model.save(f'model/{patientID}_keras_model.h5')
+    if path=='':
+        path=f'model/{patientID}_'
+    model.save(f'{path}keras_model.h5')
     try:
-        subprocess.call(['python', 'convert_model.py', f'model/{patientID}_keras_model.h5', f'model/{patientID}_fdeep_model.json'])
+        subprocess.call(['python', 'fdeep/convert_model.py', f'{path}keras_model.h5', f'{path}fdeep_model.json'])
     except:
         print('Exception in convert script.')
 

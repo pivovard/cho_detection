@@ -334,12 +334,19 @@ def plot_derivations(df, begin=0, end=0, title=''):
     plt.legend()
 
 #load transposed data of patient, modifie them and return in DataFrame
-def load_data(patientID, type='training', label=utils.ist_l,
+def load_data(patientID=0, type='training', dir='', file='',
+              label=utils.ist_l,
               fill_missing='',smooth='', derivation='', norm='',
               verbose=True, graphs=False, analyze=False):
-    
     utils.print_h(f'Loading and modifying data from csv {patientID}')
-    df = pd.read_csv(f'data/{patientID}-transposed-{type}.csv', sep=';')
+
+    if file == '':
+        path = f'data/{patientID}-transposed-{type}.csv'
+    else:
+        path = dir+file
+
+    df = pd.read_csv(path, sep=';')
+
     if verbose:
         print('Original data:')
         print(tabulate(df.head(20), headers = 'keys', tablefmt = 'psql'))
@@ -357,7 +364,11 @@ def load_data(patientID, type='training', label=utils.ist_l,
         df = calc_derivations(df, derivation)
     if norm != '':
         df = normalize(df, norm)
-    df.to_csv(f'data/{patientID}-modified-{type}-{label}.csv', index=False, sep=';')
+
+    if dir=='':
+        df.to_csv(f'data/{patientID}-modified-{type}-{label}.csv', index=False, sep=';')
+    else:
+        df.to_csv(f'{dir}{file}.csv', index=False, sep=';')
 
     if verbose:
         print('Training data:')

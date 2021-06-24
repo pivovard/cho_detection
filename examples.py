@@ -34,19 +34,6 @@ IDs=[540,544,552,563,570,575,584,591,596]
 # df = ld.load_data_all(IDs, from_file=True, fill_missing='', smooth='savgol', derivation='difference', norm='')
 
 
-## IST prediction
-# headers = [utils.ist_l, utils.inr_l, utils.inb_l, 'hour', 'weekday', 'der1', 'der2', 'der3']
-# window = WindowGenerator(df=df, headers=headers, label_columns=['Interstitial glucose'],
-#                               input_width=utils.WINDOW_WIDTH_1H*3, label_width=6, shift=6)
-# model = nn.feedback(window)
-# nn.predict(model, window)
-
-
-## CHO prediction LDA
-# headers = [utils.ist_l, 'weekday', 'd1', 'd2', 'd3']
-# cho.lda_window(df, 'Interstitial glucose', 24, 'window')
-# cho.lda(df, headers, 'multiple values')
-
 ## CHO prediction RNN
 # headers = ['ist', 'd1', 'minute_n']
 # cho.rnn(df, headers,'cho2', 'gru', epochs=100, patientID=1)
@@ -60,10 +47,22 @@ IDs=[540,544,552,563,570,575,584,591,596]
 #                          verbose=True, graphs=False, analyze=False)
 #     cho.rnn(df, headers,'cho2', 'gru', epochs=100, patientID=ID)
 
+## CHO prediction LDA
+# headers = [utils.ist_l, 'weekday', 'd1', 'd2', 'd3']
+# cho.lda_window(df, 'Interstitial glucose', 24, 'window')
+# cho.lda(df, headers, 'multiple values')
+
 ## CHO prediction threshold
 # act = cho.threshold(df)
 # utils.evaluate(df['cho_b'], act, treshold=3)
 # utils.evaluate(df['cho_b'], act, treshold=5.5)
+
+## IST prediction
+# headers = [utils.ist_l, utils.inr_l, utils.inb_l, 'hour', 'weekday', 'der1', 'der2', 'der3']
+# window = WindowGenerator(df=df, headers=headers, label_columns=['Interstitial glucose'],
+#                               input_width=utils.WINDOW_WIDTH_1H*3, label_width=6, shift=6)
+# model = nn.feedback(window)
+# nn.predict(model, window)
 
 # plt.show()
 

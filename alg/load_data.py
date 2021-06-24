@@ -283,7 +283,6 @@ def plot_graph(df, begin=0, end=0, title=''):
     plt.plot(datetime, df[utils.ist_l][begin:end], label=utils.ist_l)
     plt.plot(datetime, df['ist'][begin:end], label='IST smoothed')
     plt.scatter(datetime, 0.2*df[utils.cho_l][begin:end], label=f'{utils.cho_l} [g]', c='g', s=10)
-    plt.scatter(datetime, df['pa'][begin:end], label=utils.ist_l)
     #plt.xticks(rotation=50)
     plt.legend()
     plt.ylabel('[mmol/l]')
@@ -398,8 +397,6 @@ def load_data_file(patientID, type='training', label=utils.ist_l, verbose=True, 
         plot_graph(df, end=288, title = '24h dataset')
         plot_derivations(df, title = 'Whole dataset')
         plot_derivations(df, end=288, title = '24h dataset')
-        # example patientID 575
-        plot_graph(df, begin=5*288-30, end=7*288-30, title = '48h dataset')
 
     # df = replace_nan(df)
     return df

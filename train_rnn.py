@@ -30,7 +30,8 @@ def train_all(IDs, type):
 
 def hint():
     print('python train_rnn.py <type> <option> [IDs]')
-    print('Training files must be in /model/[ID]-ws-training.log.\n')
+    print('Training files must be in /model/[ID]-ws-training.log.')
+    print('Run with Python 3.7 or 3.8.')
     print('Type:')
     print('-gru')
     print('-lstm\n')

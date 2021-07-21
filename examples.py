@@ -18,27 +18,26 @@ import alg.utils as utils
 ID = 559
 IDs=[540,544,552,563,570,575,584,591,596]
 
-
 ## Parse log file to csv file
 # lg.load_log(patientID=ID)
 # lg.load_log_all(IDs, 'training')
 
 
-## Load data from csv file
+## Load transposed data and modify them
 # df = ld.load_data(ID, label='Interstitial glucose', fill_missing='',
 #                          smooth='savgol', derivation='difference', norm='',
 #                          verbose=True, graphs=True, analyze=False)
 ## Load modified data from file
 # df = ld.load_data_file(ID, label='Interstitial glucose', verbose=True, graphs=False, analyze=False)
 ## Load multiple csv files
-# df = ld.load_data_all(IDs, from_file=True, fill_missing='', smooth='savgol', derivation='difference', norm='')
+df = ld.load_data_all(IDs, from_file=True, fill_missing='', smooth='savgol', derivation='difference', norm='')
 
 
 ## CHO prediction RNN
-# headers = ['ist', 'd1', 'minute_n']
-# cho.rnn(df, headers,'cho2', 'gru', epochs=100, patientID=1)
-# cho.rnn_test(df, headers, 'Carbohydrate intake', 12, path=f'model/{ID}_keras_model.h5')
-# plt.show()
+headers = ['ist', 'd1', 'minute_n']
+cho.rnn(df, headers,'cho2', 'gru', epochs=100, patientID=1)
+cho.rnn_test(df, headers, 'Carbohydrate intake', 12, path=f'model/{ID}_keras_model.h5')
+plt.show()
 
 ## load data and train RNN for all pacients
 # for i, ID in enumerate(IDs):

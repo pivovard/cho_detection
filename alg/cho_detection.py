@@ -62,7 +62,7 @@ def rnn(df, headers, label, type, width=utils.WINDOW_WIDTH_1H*2, epochs=100, pat
                 units=128,
                 input_shape=[X.shape[1], X.shape[2]]
             )))
-    model.add(tf.keras.layers.Dropout(rate=0.2))
+    model.add(tf.keras.layers.Dropout(rate=0.5))
     model.add(tf.keras.layers.Dense(units=128, activation='relu'))
     model.add(tf.keras.layers.Dense(1))
 

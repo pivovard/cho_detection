@@ -28,6 +28,8 @@ def hint():
     print('-f \t input file name (to train from all files in the folder use *)')
     print('-i\t input dir (default data/)')
     print('-o\t output dir (default model/)')
+    print('-t\t use transposed data files (input folder must contain .log.csv files)')
+    print('-m\t use modified data files (input folder must contain modified .csv files)')
     print('-h\t hint\n')
 
 def main(argv):
@@ -41,9 +43,11 @@ def main(argv):
     file='*'
     input='data/'
     output='model/'
+    transpose = True
+    modify = True
     
     try:
-        opts, args = getopt.getopt(argv[1:],"hf:i:o:",[])
+        opts, args = getopt.getopt(argv[1:],"htmf:i:o:",[])
     except getopt.GetoptError:
         print('Invalid arguments!\n')
         hint()
@@ -55,36 +59,60 @@ def main(argv):
             sys.exit()
         if opt == '-f':
             file=arg
+            if not os.path.exists(file):
+                print('File doesn\'t exists!')
+                exit()
         if opt == '-i':
             input=arg+'/'
         if opt == '-o':
             output=arg+'/'
+        if opt == '-t':
+            transpose = False
+        if opt == '-m':
+            modify = False
 
     print(f'Training {type}. File {input}{file}, output {output}.')
 
     if file == '*':
         print('Files ' + str(os.listdir(input)))
-        for f in os.listdir(input):
-            if f[-4:] != '.log':
-                continue
-            lg.load_log(dir=input, log_file=f, verbose=True)
+        # Transpose data
+        if transpose:
+            for f in os.listdir(input):
+                if f[-4:] != '.log':
+                    continue
+                lg.load_log(dir=input, log_file=f, verbose=True)
 
+        # Load modified data
         df=pd.DataFrame()
         for f in os.listdir(input):
-            if f[-8:] != '.log.csv':
-                continue
-            d = ld.load_data(dir=input, file=f, label='Interstitial glucose', fill_missing='',
-                         smooth='savgol', derivation='difference', norm='',
-                         verbose=True, graphs=False, analyze=False)
-            df=df.append(d)
+            # Modify data
+            if modify:
+                if f[-8:] != '.log.csv':
+                    continue
+                d = ld.load_data(dir=input, file=f, label='Interstitial glucose', fill_missing='',
+                                 smooth='savgol', derivation='difference', norm='',
+                                 verbose=True, graphs=False, analyze=False)
+                df=df.append(d)
+            # Load saved data
+            else:
+                if f[-24:] != 'Interstitial glucose.csv':
+                    continue
+                d = ld.load_data_file(dir=input, file=f, label='Interstitial glucose')
+                df=df.append(d)
         df=df.reset_index(drop=True)
-        cho.rnn(df, headers,'cho2', type, epochs=1, path=output)
+
+        # Train RNN
+        cho.rnn(df, headers,'cho2', type, epochs=80, path=output)
     else:
-        lg.load_log(dir=input, log_file=file)
+        # Transpose data
+        if transpose:
+            lg.load_log(dir=input, log_file=file)
+        # Modify data
         df = ld.load_data(dir=input, file=(file+'.csv'), label='Interstitial glucose', fill_missing='',
                          smooth='savgol', derivation='difference', norm='',
                          verbose=True, graphs=False, analyze=False)
-        cho.rnn(df, headers,'cho2', type, epochs=100, path=output)
+        # Train RNN
+        cho.rnn(df, headers,'cho2', type, epochs=80, path=output)
 
 
 if __name__ == "__main__":

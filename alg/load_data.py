@@ -25,6 +25,8 @@ from datetime import timedelta
 
 import alg.utils as utils
 
+pd.options.mode.chained_assignment = None  # default='warn'
+
 #convert time to datetime format
 def to_datetime(df, column):
     device_time = df.pop(column)
@@ -166,6 +168,7 @@ def get_cho(df):
     df['cho'] = df['Carbohydrate intake']
     df['cho2'] = np.zeros(len(df))
     df['cho_cat'] = np.zeros(len(df))
+    df[utils.cho_l] = df[utils.cho_l].fillna(0)
     it = df.iterrows()
     for index, row in it:
         # copy 2h
@@ -193,6 +196,7 @@ def get_pa(df):
     print('\nProcessing PA...')
     df['pa'] = df['Physical activity']
     df['pa2'] = np.zeros(len(df))
+    df[utils.phy_l] = df[utils.phy_l].fillna(0)
     it = df.iterrows()
     for index, row in it:
         if not pd.isnull(row[utils.phy_l]) and row[utils.phy_l] > 0:
@@ -334,16 +338,15 @@ def plot_derivations(df, begin=0, end=0, title=''):
     plt.legend()
 
 #load transposed data of patient, modifie them and return in DataFrame
-def load_data(patientID=0, type='training', dir='', file='',
+def load_data(patientID=-1, type='training', dir='data/', file='',
               label=utils.ist_l,
               fill_missing='',smooth='', derivation='', norm='',
               verbose=True, graphs=False, analyze=False):
-    utils.print_h(f'Loading and modifying data from csv {patientID}')
-
     if file == '':
-        path = f'data/{patientID}-transposed-{type}.csv'
-    else:
-        path = dir+file
+        file = f'{patientID}-ws-{type}.log.csv'
+    
+    path = dir+file
+    utils.print_h(f'Loading and modifying data from file {path}')    
 
     df = pd.read_csv(path, sep=';')
 
@@ -356,6 +359,7 @@ def load_data(patientID=0, type='training', dir='', file='',
     df = get_cho(df)
     df = get_pa(df)
     df = process_time(df)
+    
     if smooth == 'savgol':
         df['ist'] = savgol_filter(df['Interstitial glucose'], 21, 3) # window size 51, polynomial order 3
     else:
@@ -365,10 +369,10 @@ def load_data(patientID=0, type='training', dir='', file='',
     if norm != '':
         df = normalize(df, norm)
 
-    if dir=='':
-        df.to_csv(f'data/{patientID}-modified-{type}-{label}.csv', index=False, sep=';')
-    else:
-        df.to_csv(f'{dir}{file}.csv', index=False, sep=';')
+    if patientID == -1:
+        patientID = file[:3]
+
+    df.to_csv(f'{dir}{patientID}-modified-{type}-{label}.csv', index=False, sep=';')
 
     if verbose:
         print('Training data:')
@@ -388,9 +392,18 @@ def load_data(patientID=0, type='training', dir='', file='',
     return df
 
 #load data from file
-def load_data_file(patientID, type='training', label=utils.ist_l, verbose=True, graphs=False, analyze=False):
-    utils.print_h(f'Loading data from file {patientID}')
-    df = pd.read_csv(f'data/{patientID}-modified-{type}-{label}.csv', sep=';')
+def load_data_file(patientID=-1, type='training', label=utils.ist_l,
+                   dir='data/', file='',
+                   verbose=True, graphs=False, analyze=False):
+    if file == '':
+        file = f'{patientID}-modified-{type}-{label}.csv'
+    
+    path = dir+file
+    
+    utils.print_h(f'Loading data from file {path}')
+    # df = pd.read_csv(f'data/{patientID}-modified-{type}-{label}.csv', sep=';')
+    df = pd.read_csv(path, sep=';')
+    
     #set datetime type
     df = to_datetime(df, 'datetime')
 

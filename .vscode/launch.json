@@ -10,8 +10,10 @@
             "type": "python",
             "request": "launch",
             // "program": "${file}",
+            // "program": "${workspaceFolder}/examples.py",
             "program": "${workspaceFolder}/train_rnn.py",
-            "args": ["-gru", "-i", "t1/", "-o", "t2"],
+            // "args": ["-gru", "-i", "data3/", "-o", "t2", "-t", "-m"],
+            "args": ["-gru", "-i", "test/", "-o", "model", "-t"],
             "console": "integratedTerminal"
             // "console": "externalTerminal"
         }

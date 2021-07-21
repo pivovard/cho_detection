@@ -18,11 +18,11 @@ from tabulate import tabulate
 import alg.utils as utils
 
 #transpose data from log file to csv file
-def load_log(patientID=0, type='training', dir='', log_file='', verbose=True):
+def load_log(patientID=-1, dir='data', log_file='', verbose=True):
     if log_file == '':
-        path = f'data/{patientID}-ws-{type}.log'
-    else:
-        path = dir+log_file
+        log_file = f'{patientID}-ws-training.log'
+
+    path = dir+log_file
 
     print('Transfering data from log file:')
     print(path)
@@ -54,16 +54,13 @@ def load_log(patientID=0, type='training', dir='', log_file='', verbose=True):
 
         data[col].iat[-1] = val
 
-    if dir=='':
-        data.to_csv(f'data/{patientID}-transposed-{type}.csv', index=False, sep=';')
-    else:
-        data.to_csv(f'{dir}{log_file}.csv', index=False, sep=';')
+    data.to_csv(f'{dir}{log_file}.csv', index=False, sep=';')
 
     if verbose:
         print(tabulate(data.head(20), headers='keys', tablefmt='psql'))
 
 #transpose multimple log files
-def load_log_all(patientIDs=[], type='training', dir=''):
+def load_log_all(patientIDs=[], dir='data'):
     utils.print_h('START')
 
     if len(patientIDs) > 0:
